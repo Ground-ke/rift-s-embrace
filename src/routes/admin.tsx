@@ -1,10 +1,256 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { BarChart3, CheckCircle2, CircleDollarSign, Clock3, LayoutDashboard, Menu, QrCode, Settings, Ticket, Users, XCircle, type LucideIcon } from "lucide-react";
+import {
+  BarChart3,
+  CheckCircle2,
+  CircleDollarSign,
+  Clock3,
+  LayoutDashboard,
+  Menu,
+  QrCode,
+  Settings,
+  Ticket,
+  Users,
+  XCircle,
+  type LucideIcon,
+} from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-export const Route=createFileRoute("/admin")({head:()=>({meta:[{title:"Admin Preview — Hauntings of the Rift"},{name:"description",content:"Frontend organizer dashboard design preview for Hauntings of the Rift."},{property:"og:title",content:"Hauntings of the Rift Admin Preview"},{property:"og:description",content:"Organizer operations interface design."},{property:"og:type",content:"website"},{name:"twitter:card",content:"summary"}]}),component:Admin});
-const stats=[["Tickets sold","—",Ticket],["Revenue","KES —",CircleDollarSign],["Tickets remaining","—",Users],["Today's sales","—",BarChart3]] as const;
-const adminNav: Array<[string, LucideIcon]> = [["Overview",LayoutDashboard],["Tickets",Ticket],["Promotions",Clock3],["Check-in",QrCode],["Settings",Settings]];
-function Admin(){const [open,setOpen]=useState(false);return <div className="min-h-screen bg-muted/40 lg:grid lg:grid-cols-[15rem_1fr]"><aside className={`${open?"fixed inset-0 z-40 block":"hidden"} border-r border-border bg-background p-5 lg:static lg:block`}><div className="flex items-center justify-between"><Link to="/" className="font-display text-2xl text-bone">H/R Admin</Link><Button className="lg:hidden" variant="ghost" size="icon" aria-label="Close admin menu" onClick={()=>setOpen(false)}><XCircle/></Button></div><p className="mt-1 text-xs uppercase tracking-widest text-muted-foreground">Design preview</p><nav className="mt-10 grid gap-1">{adminNav.map(([label,Icon],i)=><button className={`flex min-h-11 items-center gap-3 px-3 text-left text-sm ${i===0?"bg-oxblood text-bone":"text-muted-foreground hover:bg-card hover:text-bone"}`} key={label}><Icon className="size-4"/>{label}</button>)}</nav><div className="absolute bottom-5 left-5 right-5 border border-lavender/30 bg-lavender/5 p-3 text-xs text-muted-foreground lg:fixed lg:right-auto lg:w-[13.5rem]">Static interface preview. No live sales or attendee data.</div></aside><div className="min-w-0"><header className="grid h-16 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 border-b border-border bg-background px-4 sm:px-6"><Button className="min-h-11 min-w-11 lg:hidden" variant="ghost" size="icon" aria-label="Open admin menu" onClick={()=>setOpen(true)}><Menu/></Button><div className="min-w-0"><h1 className="truncate font-sans text-lg font-bold text-bone">Event control</h1><p className="truncate text-xs text-muted-foreground">Hauntings of the Rift · 31 Oct 2026</p></div><span className="border border-border px-3 py-1 text-xs uppercase tracking-widest text-muted-foreground">Sales not connected</span></header><div className="p-4 sm:p-6 lg:p-8"><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{stats.map(([label,value,Icon])=><article className="border border-border bg-card p-5" key={label}><div className="flex items-center justify-between"><span className="text-sm text-muted-foreground">{label}</span><Icon className="size-4 text-lavender"/></div><div className="mt-5 font-display text-4xl text-bone">{value}</div><p className="mt-1 text-xs text-muted-foreground">Awaiting backend data</p></article>)}</div><Tabs defaultValue="overview" className="mt-6"><TabsList className="h-auto w-full justify-start overflow-x-auto rounded-none border-b border-border bg-transparent p-0"><TabsTrigger value="overview" className="min-h-11 rounded-none data-[state=active]:bg-card">Overview</TabsTrigger><TabsTrigger value="tickets" className="min-h-11 rounded-none data-[state=active]:bg-card">Ticket types</TabsTrigger><TabsTrigger value="orders" className="min-h-11 rounded-none data-[state=active]:bg-card">Orders</TabsTrigger><TabsTrigger value="control" className="min-h-11 rounded-none data-[state=active]:bg-card">Event control</TabsTrigger></TabsList><TabsContent value="overview"><div className="mt-5 grid gap-5 xl:grid-cols-[1.5fr_1fr]"><article className="border border-border bg-card p-5"><h2 className="font-sans text-lg font-bold text-bone">Sales trend</h2><p className="text-sm text-muted-foreground">Chart area ready for live order data</p><div className="mt-8 flex h-56 items-end gap-3 border-b border-l border-border px-4">{[18,32,25,46,54,48,72,63,84,74,92,80].map((h,i)=><span key={i} className="flex-1 bg-primary/50" style={{height:`${h}%`}}/>)}</div></article><article className="border border-border bg-card p-5"><h2 className="font-sans text-lg font-bold text-bone">Check-in result states</h2><div className="mt-5 grid gap-3"><div className="border border-primary/50 bg-primary/10 p-4"><CheckCircle2 className="text-primary"/><strong className="mt-3 block text-bone">Valid</strong><span className="text-sm text-muted-foreground">Admit guest and mark used</span></div><div className="border border-destructive/50 bg-destructive/10 p-4"><XCircle className="text-destructive"/><strong className="mt-3 block text-bone">Used / invalid</strong><span className="text-sm text-muted-foreground">Do not admit; review details</span></div></div></article></div></TabsContent><TabsContent value="tickets"><div className="mt-5 overflow-x-auto border border-border bg-card"><table className="w-full min-w-[620px] text-left text-sm"><thead className="border-b border-border text-muted-foreground"><tr>{["Ticket type","Price","Inventory","Sales window","Status"].map(h=><th className="p-4" key={h}>{h}</th>)}</tr></thead><tbody>{[["Early Bird","KES 1,000"],["Couple","KES 1,800"],["Group of Four","KES 3,600"]].map(r=><tr className="border-b border-border last:border-0" key={r[0]}><td className="p-4 text-bone">{r[0]}</td><td className="p-4">{r[1]}</td><td className="p-4">Configure</td><td className="p-4">Configure</td><td className="p-4"><span className="border border-border px-2 py-1 text-xs">Draft</span></td></tr>)}</tbody></table></div></TabsContent><TabsContent value="orders"><div className="mt-5 border border-dashed border-border p-12 text-center"><Ticket className="mx-auto text-muted-foreground"/><h2 className="mt-4 font-sans text-xl font-bold text-bone">Orders will appear here</h2><p className="mt-2 text-muted-foreground">Buyer, phone, amount, payment status and ticket status will be connected to live data.</p></div></TabsContent><TabsContent value="control"><div className="mt-5 grid gap-4 md:grid-cols-2"><article className="border border-border bg-card p-5"><h2 className="font-sans text-lg font-bold text-bone">Sales control</h2><p className="mt-2 text-sm text-muted-foreground">Sales active/paused, event capacity and inventory controls will require authenticated backend access.</p><Button className="mt-5" variant="spectral" disabled>Pause sales</Button></article><article className="border border-border bg-card p-5"><h2 className="font-sans text-lg font-bold text-bone">Payment configuration</h2><p className="mt-2 text-sm text-muted-foreground">M-Pesa credentials and callbacks will be configured securely on the server later.</p><Button className="mt-5" variant="spectral" disabled>Configure</Button></article></div></TabsContent></Tabs></div></div></div>}
+export const Route = createFileRoute("/admin")({
+  head: () => ({
+    meta: [
+      { title: "Admin Preview — Hauntings of the Rift" },
+      {
+        name: "description",
+        content: "Frontend organizer dashboard design preview for Hauntings of the Rift.",
+      },
+      { property: "og:title", content: "Hauntings of the Rift Admin Preview" },
+      { property: "og:description", content: "Organizer operations interface design." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
+    ],
+  }),
+  component: Admin,
+});
+const stats = [
+  ["Tickets sold", "—", Ticket],
+  ["Revenue", "KES —", CircleDollarSign],
+  ["Tickets remaining", "—", Users],
+  ["Today's sales", "—", BarChart3],
+] as const;
+const adminNav: Array<[string, LucideIcon]> = [
+  ["Overview", LayoutDashboard],
+  ["Tickets", Ticket],
+  ["Promotions", Clock3],
+  ["Check-in", QrCode],
+  ["Settings", Settings],
+];
+function Admin() {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="min-h-screen bg-muted/40 lg:grid lg:grid-cols-[15rem_1fr]">
+      <aside
+        className={`${open ? "fixed inset-0 z-40 block" : "hidden"} border-r border-border bg-background p-5 lg:static lg:block`}
+      >
+        <div className="flex items-center justify-between">
+          <Link to="/" className="font-display text-2xl text-bone">
+            H/R Admin
+          </Link>
+          <Button
+            className="lg:hidden"
+            variant="ghost"
+            size="icon"
+            aria-label="Close admin menu"
+            onClick={() => setOpen(false)}
+          >
+            <XCircle />
+          </Button>
+        </div>
+        <p className="mt-1 text-xs uppercase tracking-widest text-muted-foreground">
+          Design preview
+        </p>
+        <nav className="mt-10 grid gap-1">
+          {adminNav.map(([label, Icon], i) => (
+            <button
+              className={`flex min-h-11 items-center gap-3 px-3 text-left text-sm ${i === 0 ? "bg-oxblood text-bone" : "text-muted-foreground hover:bg-card hover:text-bone"}`}
+              key={label}
+            >
+              <Icon className="size-4" />
+              {label}
+            </button>
+          ))}
+        </nav>
+        <div className="absolute bottom-5 left-5 right-5 border border-lavender/30 bg-lavender/5 p-3 text-xs text-muted-foreground lg:fixed lg:right-auto lg:w-[13.5rem]">
+          Static interface preview. No live sales or attendee data.
+        </div>
+      </aside>
+      <div className="min-w-0">
+        <header className="grid h-16 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 border-b border-border bg-background px-4 sm:px-6">
+          <Button
+            className="min-h-11 min-w-11 lg:hidden"
+            variant="ghost"
+            size="icon"
+            aria-label="Open admin menu"
+            onClick={() => setOpen(true)}
+          >
+            <Menu />
+          </Button>
+          <div className="min-w-0">
+            <h1 className="truncate font-sans text-lg font-bold text-bone">Event control</h1>
+            <p className="truncate text-xs text-muted-foreground">
+              Hauntings of the Rift · 31 Oct 2026
+            </p>
+          </div>
+          <span className="border border-border px-3 py-1 text-xs uppercase tracking-widest text-muted-foreground">
+            Sales not connected
+          </span>
+        </header>
+        <div className="p-4 sm:p-6 lg:p-8">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {stats.map(([label, value, Icon]) => (
+              <article className="border border-border bg-card p-5" key={label}>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">{label}</span>
+                  <Icon className="size-4 text-lavender" />
+                </div>
+                <div className="mt-5 font-display text-4xl text-bone">{value}</div>
+                <p className="mt-1 text-xs text-muted-foreground">Awaiting backend data</p>
+              </article>
+            ))}
+          </div>
+          <Tabs defaultValue="overview" className="mt-6">
+            <TabsList className="h-auto w-full justify-start overflow-x-auto rounded-none border-b border-border bg-transparent p-0">
+              <TabsTrigger
+                value="overview"
+                className="min-h-11 rounded-none data-[state=active]:bg-card"
+              >
+                Overview
+              </TabsTrigger>
+              <TabsTrigger
+                value="tickets"
+                className="min-h-11 rounded-none data-[state=active]:bg-card"
+              >
+                Ticket types
+              </TabsTrigger>
+              <TabsTrigger
+                value="orders"
+                className="min-h-11 rounded-none data-[state=active]:bg-card"
+              >
+                Orders
+              </TabsTrigger>
+              <TabsTrigger
+                value="control"
+                className="min-h-11 rounded-none data-[state=active]:bg-card"
+              >
+                Event control
+              </TabsTrigger>
+            </TabsList>
+            <TabsContent value="overview">
+              <div className="mt-5 grid gap-5 xl:grid-cols-[1.5fr_1fr]">
+                <article className="border border-border bg-card p-5">
+                  <h2 className="font-sans text-lg font-bold text-bone">Sales trend</h2>
+                  <p className="text-sm text-muted-foreground">
+                    Chart area ready for live order data
+                  </p>
+                  <div className="mt-8 flex h-56 items-end gap-3 border-b border-l border-border px-4">
+                    {[18, 32, 25, 46, 54, 48, 72, 63, 84, 74, 92, 80].map((h, i) => (
+                      <span key={i} className="flex-1 bg-primary/50" style={{ height: `${h}%` }} />
+                    ))}
+                  </div>
+                </article>
+                <article className="border border-border bg-card p-5">
+                  <h2 className="font-sans text-lg font-bold text-bone">Check-in result states</h2>
+                  <div className="mt-5 grid gap-3">
+                    <div className="border border-primary/50 bg-primary/10 p-4">
+                      <CheckCircle2 className="text-primary" />
+                      <strong className="mt-3 block text-bone">Valid</strong>
+                      <span className="text-sm text-muted-foreground">
+                        Admit guest and mark used
+                      </span>
+                    </div>
+                    <div className="border border-destructive/50 bg-destructive/10 p-4">
+                      <XCircle className="text-destructive" />
+                      <strong className="mt-3 block text-bone">Used / invalid</strong>
+                      <span className="text-sm text-muted-foreground">
+                        Do not admit; review details
+                      </span>
+                    </div>
+                  </div>
+                </article>
+              </div>
+            </TabsContent>
+            <TabsContent value="tickets">
+              <div className="mt-5 overflow-x-auto border border-border bg-card">
+                <table className="w-full min-w-[620px] text-left text-sm">
+                  <thead className="border-b border-border text-muted-foreground">
+                    <tr>
+                      {["Ticket type", "Price", "Inventory", "Sales window", "Status"].map((h) => (
+                        <th className="p-4" key={h}>
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[
+                      ["Early Bird", "KES 1,000"],
+                      ["Couple", "KES 1,800"],
+                      ["Group of Four", "KES 3,600"],
+                    ].map((r) => (
+                      <tr className="border-b border-border last:border-0" key={r[0]}>
+                        <td className="p-4 text-bone">{r[0]}</td>
+                        <td className="p-4">{r[1]}</td>
+                        <td className="p-4">Configure</td>
+                        <td className="p-4">Configure</td>
+                        <td className="p-4">
+                          <span className="border border-border px-2 py-1 text-xs">Draft</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </TabsContent>
+            <TabsContent value="orders">
+              <div className="mt-5 border border-dashed border-border p-12 text-center">
+                <Ticket className="mx-auto text-muted-foreground" />
+                <h2 className="mt-4 font-sans text-xl font-bold text-bone">
+                  Orders will appear here
+                </h2>
+                <p className="mt-2 text-muted-foreground">
+                  Buyer, phone, amount, payment status and ticket status will be connected to live
+                  data.
+                </p>
+              </div>
+            </TabsContent>
+            <TabsContent value="control">
+              <div className="mt-5 grid gap-4 md:grid-cols-2">
+                <article className="border border-border bg-card p-5">
+                  <h2 className="font-sans text-lg font-bold text-bone">Sales control</h2>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Sales active/paused, event capacity and inventory controls will require
+                    authenticated backend access.
+                  </p>
+                  <Button className="mt-5" variant="spectral" disabled>
+                    Pause sales
+                  </Button>
+                </article>
+                <article className="border border-border bg-card p-5">
+                  <h2 className="font-sans text-lg font-bold text-bone">Payment configuration</h2>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    M-Pesa credentials and callbacks will be configured securely on the server
+                    later.
+                  </p>
+                  <Button className="mt-5" variant="spectral" disabled>
+                    Configure
+                  </Button>
+                </article>
+              </div>
+            </TabsContent>
+          </Tabs>
+        </div>
+      </div>
+    </div>
+  );
+}
