@@ -1,18 +1,19 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowLeft, CheckCircle2, CircleX, Clock3, ScanLine } from "lucide-react";
+import { createFileRoute } from "@tanstack/react-router";
+import { CheckCircle2, CircleX, Clock3, ScanLine } from "lucide-react";
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
 import { QRPlaceholder } from "@/components/event/qr-placeholder";
+import { VerveBackButton, VerveLogo, VervePresenterBadge } from "@/components/brand/verve-logo";
 
 export const Route = createFileRoute("/ticket/demo")({
   head: () => ({
     meta: [
-      { title: "Digital Ticket Design — Hauntings of the Rift" },
+      { title: "Digital Ticket Design — Verve & Co. | Hauntings of the Rift" },
       {
         name: "description",
-        content: "Digital ticket interface preview for Hauntings of the Rift.",
+        content:
+          "Digital ticket interface preview for Hauntings of the Rift presented by Verve & Co.",
       },
-      { property: "og:title", content: "Hauntings of the Rift Digital Ticket" },
+      { property: "og:title", content: "Hauntings of the Rift Digital Ticket — Verve & Co." },
       { property: "og:description", content: "Frontend preview of the event ticket experience." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
@@ -31,18 +32,20 @@ function TicketDemo() {
   } as const;
   const [title, sub, Icon] = stateData[state];
   return (
-    <div className="min-h-screen px-4 py-8 sm:py-14">
+    <div className="min-h-screen px-4 py-8 sm:py-14 bg-background">
       <div className="mx-auto max-w-5xl">
-        <Button asChild variant="ghost">
-          <Link to="/">
-            <ArrowLeft /> Back to event
-          </Link>
-        </Button>
+        <div className="flex items-center justify-between">
+          <VerveBackButton to="/" label="Back to Event" />
+          <VervePresenterBadge />
+        </div>
         <div className="mt-8 grid gap-8 lg:grid-cols-[1fr_20rem] lg:items-start">
           <article className="gothic-frame poster-grain relative overflow-hidden bg-card">
             <div className="border-b border-dashed border-bone/25 bg-oxblood p-6 sm:p-10">
+              <div className="mb-3">
+                <VerveLogo variant="horizontal" size="sm" showCo={true} />
+              </div>
               <p className="text-xs font-bold uppercase tracking-[.3em] text-lavender">
-                Serve & Co. presents
+                Verve &amp; Co. presents
               </p>
               <h1 className="mt-3 text-5xl leading-[.85] text-bone sm:text-7xl">
                 Hauntings

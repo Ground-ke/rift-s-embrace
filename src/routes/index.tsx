@@ -26,20 +26,22 @@ import { Sheet, SheetClose, SheetContent, SheetTitle, SheetTrigger } from "@/com
 import { Countdown } from "@/components/event/countdown";
 import { ShareActions } from "@/components/event/share-actions";
 import { TicketCard, type Ticket } from "@/components/event/ticket-card";
+import { VerveLogo, VerveIcon, VervePresenterBadge } from "@/components/brand/verve-logo";
 
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Hauntings of the Rift — Halloween in Nakuru" },
+      { title: "Hauntings of the Rift — Verve & Co. in Nakuru" },
       {
         name: "description",
         content:
-          "Hauntings of the Rift at The Lawns, Nakuru. 31 October 2026 from 4 PM. Tickets from KES 1,000.",
+          "Hauntings of the Rift at The Lawns, Nakuru. 31 October 2026 from 4 PM. Presented by Verve & Co. Tickets from KES 1,000.",
       },
-      { property: "og:title", content: "Hauntings of the Rift — 31 October 2026" },
+      { property: "og:title", content: "Hauntings of the Rift — Verve & Co." },
       {
         property: "og:description",
-        content: "Something is stirring beneath Nakuru. Tickets from KES 1,000.",
+        content:
+          "Something is stirring beneath Nakuru. Presented by Verve & Co. Tickets from KES 1,000.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -100,12 +102,25 @@ function Header() {
   return (
     <header className="absolute inset-x-0 top-0 z-30 border-b border-bone/10 bg-background/35 backdrop-blur-md">
       <div className="mx-auto grid h-16 max-w-7xl grid-cols-[minmax(0,1fr)_auto] items-center px-4 sm:px-6 lg:px-8">
-        <a href="#home" className="min-w-0 font-display text-xl font-bold text-bone sm:text-2xl">
-          H/R{" "}
-          <span className="ml-2 font-sans text-[10px] uppercase tracking-[.25em] text-muted-foreground">
-            Serve & Co. presents
-          </span>
-        </a>
+        <div className="flex items-center gap-3">
+          <Link
+            to="/"
+            className="flex items-center gap-2.5 transition-opacity hover:opacity-90"
+            aria-label="Hauntings of the Rift - Home"
+          >
+            <VerveIcon className="size-8 text-amber-400" />
+            <div className="flex flex-col">
+              <span className="font-display text-lg sm:text-xl font-bold tracking-tight text-bone leading-none">
+                H/R
+              </span>
+              <span className="text-[9px] uppercase tracking-[0.25em] text-muted-foreground font-mono">
+                Verve &amp; Co.
+              </span>
+            </div>
+          </Link>
+          <div className="hidden sm:block h-6 w-px bg-border/60 mx-1" />
+          <VervePresenterBadge className="hidden md:inline-flex" />
+        </div>
         <nav className="hidden items-center gap-7 lg:flex" aria-label="Primary navigation">
           {nav.map(([label, href]) => (
             <a
@@ -132,10 +147,13 @@ function Header() {
             </Button>
           </SheetTrigger>
           <SheetContent className="border-oxblood bg-background">
-            <SheetTitle className="font-display text-3xl text-bone">
-              Hauntings of the Rift
-            </SheetTitle>
-            <nav className="mt-10 grid gap-2">
+            <div className="flex flex-col gap-2 pt-2">
+              <VerveLogo variant="horizontal" size="sm" showCo={true} />
+              <SheetTitle className="font-display text-2xl text-bone mt-2">
+                Hauntings of the Rift
+              </SheetTitle>
+            </div>
+            <nav className="mt-8 grid gap-2">
               {nav.map(([label, href]) => (
                 <SheetClose asChild key={href}>
                   <a
@@ -201,9 +219,12 @@ function Index() {
         <div className="fog-drift absolute -left-1/4 top-1/3 h-40 w-2/3 rounded-full bg-bone/10 blur-3xl" />
         <div className="relative z-10 mx-auto w-full max-w-7xl px-4 pb-9 pt-28 sm:px-6 sm:pb-14 lg:px-8">
           <div className="max-w-4xl">
-            <p className="mb-3 text-xs font-bold uppercase tracking-[.35em] text-lavender">
-              The most spooktacular Halloween themed event
-            </p>
+            <div className="mb-4 flex flex-wrap items-center gap-3">
+              <VervePresenterBadge />
+              <span className="text-xs font-bold uppercase tracking-[.35em] text-lavender">
+                Halloween in Nakuru
+              </span>
+            </div>
             <h1 className="max-w-3xl text-6xl font-semibold leading-[.78] text-bone sm:text-8xl lg:text-[8.2rem]">
               Hauntings <span className="block text-bone-muted">of the Rift</span>
             </h1>
@@ -455,10 +476,22 @@ function Index() {
           </Button>
         </div>
       </section>
-      <footer className="border-t border-border px-4 py-8">
-        <div className="mx-auto flex max-w-7xl flex-col justify-between gap-4 text-sm text-muted-foreground sm:flex-row">
-          <span>Serve & Co. presents Hauntings of the Rift.</span>
-          <span>31 October 2026 · Nakuru · 18+</span>
+      <footer className="border-t border-border bg-card/40 px-4 py-12">
+        <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-6 sm:flex-row">
+          <div className="flex flex-col sm:flex-row items-center gap-4 text-center sm:text-left">
+            <VerveLogo variant="horizontal" size="sm" showCo={true} linkToHome={true} />
+            <div className="hidden sm:block h-5 w-px bg-border" />
+            <p className="text-xs text-muted-foreground">
+              Verve &amp; Co. presents Hauntings of the Rift.
+            </p>
+          </div>
+          <div className="flex items-center gap-4 text-xs text-muted-foreground">
+            <span>31 October 2026</span>
+            <span>·</span>
+            <span>The Lawns, Nakuru</span>
+            <span>·</span>
+            <span className="border border-border/80 px-1.5 py-0.5 font-mono text-[10px]">18+</span>
+          </div>
         </div>
       </footer>
       <MobileTicketBar visible={pastHero} />

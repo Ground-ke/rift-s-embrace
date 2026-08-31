@@ -16,16 +16,18 @@ import {
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { VerveIcon, VerveLogo } from "@/components/brand/verve-logo";
 
 export const Route = createFileRoute("/admin")({
   head: () => ({
     meta: [
-      { title: "Admin Preview — Hauntings of the Rift" },
+      { title: "Admin Portal — Verve & Co. | Hauntings of the Rift" },
       {
         name: "description",
-        content: "Frontend organizer dashboard design preview for Hauntings of the Rift.",
+        content:
+          "Frontend organizer dashboard design preview for Hauntings of the Rift by Verve & Co.",
       },
-      { property: "og:title", content: "Hauntings of the Rift Admin Preview" },
+      { property: "og:title", content: "Hauntings of the Rift Admin — Verve & Co." },
       { property: "og:description", content: "Organizer operations interface design." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
@@ -54,8 +56,9 @@ function Admin() {
         className={`${open ? "fixed inset-0 z-40 block" : "hidden"} border-r border-border bg-background p-5 lg:static lg:block`}
       >
         <div className="flex items-center justify-between">
-          <Link to="/" className="font-display text-2xl text-bone">
-            H/R Admin
+          <Link to="/" className="flex items-center gap-2" aria-label="Return to event">
+            <VerveIcon className="size-6 text-amber-400" />
+            <span className="font-display text-xl text-bone">H/R Admin</span>
           </Link>
           <Button
             className="lg:hidden"
@@ -67,8 +70,8 @@ function Admin() {
             <XCircle />
           </Button>
         </div>
-        <p className="mt-1 text-xs uppercase tracking-widest text-muted-foreground">
-          Design preview
+        <p className="mt-1 text-[10px] uppercase tracking-widest text-muted-foreground font-mono">
+          Verve &amp; Co. Ops Portal
         </p>
         <nav className="mt-10 grid gap-1">
           {adminNav.map(([label, Icon], i) => (
