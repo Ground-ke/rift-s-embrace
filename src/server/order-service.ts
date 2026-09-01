@@ -16,7 +16,7 @@ export interface CreateOrderInput {
   quantity: number;
   buyerName: string;
   buyerPhone: string;
-  idempotencyKey?: string;
+  idempotencyKey?: string | undefined;
   clientIp?: string;
 }
 
@@ -81,7 +81,7 @@ export interface StoredOrder {
   buyerPhone: string;
   status: OrderStatus;
   expiresAt: string;
-  idempotencyKey?: string;
+  idempotencyKey?: string | undefined;
   requestFingerprint?: string;
   createdAt: string;
   updatedAt: string;
