@@ -14,7 +14,146 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      recovery_requests: {
+        Row: {
+          created_at: string
+          id: string
+          identifier: string
+          ip_address: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          identifier: string
+          ip_address?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          identifier?: string
+          ip_address?: string | null
+        }
+        Relationships: []
+      }
+      tickets: {
+        Row: {
+          created_at: string
+          event_date: string | null
+          event_id: string | null
+          event_name: string
+          holder_email: string | null
+          holder_name: string
+          holder_phone: string | null
+          id: string
+          is_used: boolean
+          order_id: string | null
+          qr_hash: string
+          ticket_code: string
+          tier: string
+          used_at: string | null
+          user_id: string | null
+          venue: string | null
+        }
+        Insert: {
+          created_at?: string
+          event_date?: string | null
+          event_id?: string | null
+          event_name?: string
+          holder_email?: string | null
+          holder_name?: string
+          holder_phone?: string | null
+          id?: string
+          is_used?: boolean
+          order_id?: string | null
+          qr_hash: string
+          ticket_code: string
+          tier?: string
+          used_at?: string | null
+          user_id?: string | null
+          venue?: string | null
+        }
+        Update: {
+          created_at?: string
+          event_date?: string | null
+          event_id?: string | null
+          event_name?: string
+          holder_email?: string | null
+          holder_name?: string
+          holder_phone?: string | null
+          id?: string
+          is_used?: boolean
+          order_id?: string | null
+          qr_hash?: string
+          ticket_code?: string
+          tier?: string
+          used_at?: string | null
+          user_id?: string | null
+          venue?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tickets_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "transactions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      transactions: {
+        Row: {
+          amount: number
+          buyer_email: string | null
+          buyer_name: string | null
+          buyer_phone: string | null
+          created_at: string
+          currency: string
+          failure_reason: string | null
+          id: string
+          idempotency_key: string
+          payment_provider_ref: string | null
+          quantity: number
+          status: string
+          tier: string | null
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          amount: number
+          buyer_email?: string | null
+          buyer_name?: string | null
+          buyer_phone?: string | null
+          created_at?: string
+          currency?: string
+          failure_reason?: string | null
+          id?: string
+          idempotency_key: string
+          payment_provider_ref?: string | null
+          quantity?: number
+          status?: string
+          tier?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          amount?: number
+          buyer_email?: string | null
+          buyer_name?: string | null
+          buyer_phone?: string | null
+          created_at?: string
+          currency?: string
+          failure_reason?: string | null
+          id?: string
+          idempotency_key?: string
+          payment_provider_ref?: string | null
+          quantity?: number
+          status?: string
+          tier?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
