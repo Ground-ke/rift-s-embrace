@@ -247,6 +247,16 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["audit_logs"]["Insert"]>;
       };
     };
+    Views: Record<string, never>;
+    Enums: {
+      sales_status: SalesStatus;
+      order_status: OrderStatus;
+      reservation_status: ReservationStatus;
+      payment_status: PaymentStatus;
+      ticket_status: TicketStatus;
+      checkin_result: CheckinResult;
+    };
+    CompositeTypes: Record<string, never>;
     Functions: {
       reserve_ticket_inventory: {
         Args: {

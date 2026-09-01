@@ -113,7 +113,7 @@ function Checkout() {
   const [cooldownSeconds, setCooldownSeconds] = useState<number>(0);
   const [isCancelling, setIsCancelling] = useState(false);
 
-  const choice = options.find((o) => o.id === selected) ?? options[0];
+  const choice = (options.find((o) => o.id === selected) ?? options[0])!;
 
   // Real-time phone validation
   const phoneValidation = useMemo(() => {
