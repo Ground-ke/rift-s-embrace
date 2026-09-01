@@ -31,15 +31,8 @@ export interface Database {
           created_at: string;
           updated_at: string;
         };
-        Insert: Omit<
-          Database["public"]["Tables"]["events"]["Row"],
-          "id" | "created_at" | "updated_at"
-        > & {
-          id?: string;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Update: Partial<Database["public"]["Tables"]["events"]["Insert"]>;
+        Insert: Partial<Database["public"]["Tables"]["events"]["Row"]>;
+        Update: Partial<Database["public"]["Tables"]["events"]["Row"]>;
         Relationships: [];
       };
       ticket_types: {
@@ -63,15 +56,8 @@ export interface Database {
           created_at: string;
           updated_at: string;
         };
-        Insert: Omit<
-          Database["public"]["Tables"]["ticket_types"]["Row"],
-          "id" | "created_at" | "updated_at"
-        > & {
-          id?: string;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Update: Partial<Database["public"]["Tables"]["ticket_types"]["Insert"]>;
+        Insert: Partial<Database["public"]["Tables"]["ticket_types"]["Row"]>;
+        Update: Partial<Database["public"]["Tables"]["ticket_types"]["Row"]>;
         Relationships: [];
       };
       promotions: {
@@ -89,15 +75,8 @@ export interface Database {
           created_at: string;
           updated_at: string;
         };
-        Insert: Omit<
-          Database["public"]["Tables"]["promotions"]["Row"],
-          "id" | "created_at" | "updated_at"
-        > & {
-          id?: string;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Update: Partial<Database["public"]["Tables"]["promotions"]["Insert"]>;
+        Insert: Partial<Database["public"]["Tables"]["promotions"]["Row"]>;
+        Update: Partial<Database["public"]["Tables"]["promotions"]["Row"]>;
         Relationships: [];
       };
       orders: {
@@ -115,15 +94,8 @@ export interface Database {
           created_at: string;
           updated_at: string;
         };
-        Insert: Omit<
-          Database["public"]["Tables"]["orders"]["Row"],
-          "id" | "created_at" | "updated_at"
-        > & {
-          id?: string;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Update: Partial<Database["public"]["Tables"]["orders"]["Insert"]>;
+        Insert: Partial<Database["public"]["Tables"]["orders"]["Row"]>;
+        Update: Partial<Database["public"]["Tables"]["orders"]["Row"]>;
         Relationships: [];
       };
       order_items: {
@@ -138,11 +110,8 @@ export interface Database {
           subtotal_kes: number;
           created_at: string;
         };
-        Insert: Omit<Database["public"]["Tables"]["order_items"]["Row"], "id" | "created_at"> & {
-          id?: string;
-          created_at?: string;
-        };
-        Update: Partial<Database["public"]["Tables"]["order_items"]["Insert"]>;
+        Insert: Partial<Database["public"]["Tables"]["order_items"]["Row"]>;
+        Update: Partial<Database["public"]["Tables"]["order_items"]["Row"]>;
         Relationships: [];
       };
       inventory_reservations: {
@@ -156,15 +125,8 @@ export interface Database {
           created_at: string;
           updated_at: string;
         };
-        Insert: Omit<
-          Database["public"]["Tables"]["inventory_reservations"]["Row"],
-          "id" | "created_at" | "updated_at"
-        > & {
-          id?: string;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Update: Partial<Database["public"]["Tables"]["inventory_reservations"]["Insert"]>;
+        Insert: Partial<Database["public"]["Tables"]["inventory_reservations"]["Row"]>;
+        Update: Partial<Database["public"]["Tables"]["inventory_reservations"]["Row"]>;
         Relationships: [];
       };
       payments: {
@@ -185,15 +147,8 @@ export interface Database {
           created_at: string;
           updated_at: string;
         };
-        Insert: Omit<
-          Database["public"]["Tables"]["payments"]["Row"],
-          "id" | "created_at" | "updated_at"
-        > & {
-          id?: string;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Update: Partial<Database["public"]["Tables"]["payments"]["Insert"]>;
+        Insert: Partial<Database["public"]["Tables"]["payments"]["Row"]>;
+        Update: Partial<Database["public"]["Tables"]["payments"]["Row"]>;
         Relationships: [];
       };
       tickets: {
@@ -211,15 +166,8 @@ export interface Database {
           created_at: string;
           updated_at: string;
         };
-        Insert: Omit<
-          Database["public"]["Tables"]["tickets"]["Row"],
-          "id" | "created_at" | "updated_at"
-        > & {
-          id?: string;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Update: Partial<Database["public"]["Tables"]["tickets"]["Insert"]>;
+        Insert: Partial<Database["public"]["Tables"]["tickets"]["Row"]>;
+        Update: Partial<Database["public"]["Tables"]["tickets"]["Row"]>;
         Relationships: [];
       };
       checkins: {
@@ -231,11 +179,8 @@ export interface Database {
           device_metadata: Json | null;
           result: CheckinResult;
         };
-        Insert: Omit<Database["public"]["Tables"]["checkins"]["Row"], "id" | "scanned_at"> & {
-          id?: string;
-          scanned_at?: string;
-        };
-        Update: Partial<Database["public"]["Tables"]["checkins"]["Insert"]>;
+        Insert: Partial<Database["public"]["Tables"]["checkins"]["Row"]>;
+        Update: Partial<Database["public"]["Tables"]["checkins"]["Row"]>;
         Relationships: [];
       };
       audit_logs: {
@@ -249,11 +194,8 @@ export interface Database {
           ip_address: string | null;
           created_at: string;
         };
-        Insert: Omit<Database["public"]["Tables"]["audit_logs"]["Row"], "id" | "created_at"> & {
-          id?: string;
-          created_at?: string;
-        };
-        Update: Partial<Database["public"]["Tables"]["audit_logs"]["Insert"]>;
+        Insert: Partial<Database["public"]["Tables"]["audit_logs"]["Row"]>;
+        Update: Partial<Database["public"]["Tables"]["audit_logs"]["Row"]>;
         Relationships: [];
       };
     };
