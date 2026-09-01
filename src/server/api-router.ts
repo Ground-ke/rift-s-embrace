@@ -64,15 +64,16 @@ export async function handleApiRequest(request: Request): Promise<Response> {
         quantity,
         buyerName,
         buyerPhone,
-        idempotencyKey,
+        ...(idempotencyKey ? { idempotencyKey } : {}),
         clientIp,
       });
 
       if (!result.success) {
+        const code = (result as { code?: string }).code;
         let status = 400;
-        if (result.code === "RATE_LIMITED") status = 429;
-        if (result.code === "TICKET_NOT_FOUND" || result.code === "EVENT_NOT_FOUND") status = 404;
-        if (result.code === "INSUFFICIENT_INVENTORY" || result.code === "IDEMPOTENCY_CONFLICT")
+        if (code === "RATE_LIMITED") status = 429;
+        if (code === "TICKET_NOT_FOUND" || code === "EVENT_NOT_FOUND") status = 404;
+        if (code === "INSUFFICIENT_INVENTORY" || code === "IDEMPOTENCY_CONFLICT")
           status = 409;
         return json(result, status);
       }
@@ -94,7 +95,7 @@ export async function handleApiRequest(request: Request): Promise<Response> {
         return errorJson("Authorization token required for order lookup.", "UNAUTHORIZED", 401);
       }
 
-      const order = OrderService.getOrder(orderId, token);
+      const order = OrderService.getOrder(orderId!, token);
       if (!order) {
         return errorJson("Order not found or authorization token invalid.", "UNAUTHORIZED", 401);
       }

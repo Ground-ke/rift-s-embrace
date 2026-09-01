@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { CheckCircle2, CircleX, Clock3, ScanLine } from "lucide-react";
 import { useState } from "react";
+import { Button } from "@/components/ui/button";
 import { QRPlaceholder } from "@/components/event/qr-placeholder";
 import { VerveBackButton, VerveLogo, VervePresenterBadge } from "@/components/brand/verve-logo";
 

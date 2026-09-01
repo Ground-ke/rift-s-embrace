@@ -60,7 +60,7 @@ export function validateAndNormalizeKenyanPhone(input: string): PhoneValidationR
     };
   }
 
-  const nationalNumber = match[1]; // e.g. 712345678 or 110123456
+  const nationalNumber = match[1] ?? ""; // e.g. 712345678 or 110123456
   const prefix = nationalNumber.substring(0, 3); // 701, 712, 722, 110, etc.
 
   // Determine operator for helpful UX

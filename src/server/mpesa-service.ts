@@ -138,19 +138,19 @@ export class MpesaService {
    * Get Daraja configuration from environment
    */
   static getConfig() {
-    const env = (process.env.MPESA_ENVIRONMENT || "sandbox").toLowerCase();
+    const env = (process.env["MPESA_ENVIRONMENT"] || "sandbox").toLowerCase();
     const isProd = env === "production";
 
     return {
       environment: isProd ? "production" : "sandbox",
-      consumerKey: process.env.MPESA_CONSUMER_KEY || "",
-      consumerSecret: process.env.MPESA_CONSUMER_SECRET || "",
-      shortcode: process.env.MPESA_SHORTCODE || (isProd ? "" : "174379"),
+      consumerKey: process.env["MPESA_CONSUMER_KEY"] || "",
+      consumerSecret: process.env["MPESA_CONSUMER_SECRET"] || "",
+      shortcode: process.env["MPESA_SHORTCODE"] || (isProd ? "" : "174379"),
       passkey:
-        process.env.MPESA_PASSKEY ||
+        process.env["MPESA_PASSKEY"] ||
         (isProd ? "" : "bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919"),
       callbackUrl:
-        process.env.MPESA_CALLBACK_URL ||
+        process.env["MPESA_CALLBACK_URL"] ||
         "https://hauntings-rift.example.com/api/payments/mpesa/callback",
       oauthUrl: isProd
         ? "https://api.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials"
@@ -631,7 +631,7 @@ export class MpesaService {
     // ResultCode 1: Insufficient balance
     const isTimeout = resultCode === 1037;
     payment.status = isTimeout ? "timed_out" : "failed";
-    payment.resultCode = resultCode;
+    payment.resultCode = resultCode ?? null;
     payment.resultDescription = resultDesc || "Payment failed.";
     payment.rawCallbackPayload = payload as Record<string, unknown>;
     payment.updatedAt = new Date().toISOString();
@@ -656,8 +656,8 @@ export class MpesaService {
           .from("payments")
           .update({
             status: isTimeout ? "timed_out" : "failed",
-            result_code: resultCode,
-            result_description: resultDesc,
+            result_code: resultCode ?? null,
+            result_description: resultDesc ?? null,
             raw_callback_payload:
               payload as Database["public"]["Tables"]["payments"]["Row"]["raw_callback_payload"],
             updated_at: new Date().toISOString(),
