@@ -631,7 +631,7 @@ export class MpesaService {
     // ResultCode 1: Insufficient balance
     const isTimeout = resultCode === 1037;
     payment.status = isTimeout ? "timed_out" : "failed";
-    payment.resultCode = resultCode;
+    payment.resultCode = resultCode ?? null;
     payment.resultDescription = resultDesc || "Payment failed.";
     payment.rawCallbackPayload = payload as Record<string, unknown>;
     payment.updatedAt = new Date().toISOString();
@@ -656,8 +656,8 @@ export class MpesaService {
           .from("payments")
           .update({
             status: isTimeout ? "timed_out" : "failed",
-            result_code: resultCode,
-            result_description: resultDesc,
+            result_code: resultCode ?? null,
+            result_description: resultDesc ?? null,
             raw_callback_payload:
               payload as Database["public"]["Tables"]["payments"]["Row"]["raw_callback_payload"],
             updated_at: new Date().toISOString(),
