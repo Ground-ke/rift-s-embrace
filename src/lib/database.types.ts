@@ -40,6 +40,7 @@ export interface Database {
           updated_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["events"]["Insert"]>;
+        Relationships: [];
       };
       ticket_types: {
         Row: {
@@ -71,6 +72,7 @@ export interface Database {
           updated_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["ticket_types"]["Insert"]>;
+        Relationships: [];
       };
       promotions: {
         Row: {
@@ -96,6 +98,7 @@ export interface Database {
           updated_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["promotions"]["Insert"]>;
+        Relationships: [];
       };
       orders: {
         Row: {
@@ -121,6 +124,7 @@ export interface Database {
           updated_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["orders"]["Insert"]>;
+        Relationships: [];
       };
       order_items: {
         Row: {
@@ -139,6 +143,7 @@ export interface Database {
           created_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["order_items"]["Insert"]>;
+        Relationships: [];
       };
       inventory_reservations: {
         Row: {
@@ -160,6 +165,7 @@ export interface Database {
           updated_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["inventory_reservations"]["Insert"]>;
+        Relationships: [];
       };
       payments: {
         Row: {
@@ -188,6 +194,7 @@ export interface Database {
           updated_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["payments"]["Insert"]>;
+        Relationships: [];
       };
       tickets: {
         Row: {
@@ -213,6 +220,7 @@ export interface Database {
           updated_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["tickets"]["Insert"]>;
+        Relationships: [];
       };
       checkins: {
         Row: {
@@ -228,6 +236,7 @@ export interface Database {
           scanned_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["checkins"]["Insert"]>;
+        Relationships: [];
       };
       audit_logs: {
         Row: {
@@ -245,6 +254,7 @@ export interface Database {
           created_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["audit_logs"]["Insert"]>;
+        Relationships: [];
       };
     };
     Views: Record<string, never>;
