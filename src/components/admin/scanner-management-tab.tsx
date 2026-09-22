@@ -176,37 +176,17 @@ export function ScannerManagementTab() {
             </Button>
           </form>
 
-          {/* Preset Quick Scan Buttons */}
-          <div className="pt-3 border-t border-border/80 space-y-1.5">
-            <span className="text-[10px] text-muted-foreground uppercase font-mono block">
-              Quick Test Pass Presets:
+          <div className="pt-3 border-t border-border/80 flex items-center justify-between text-[11px] font-mono text-muted-foreground">
+            <span className="flex items-center gap-1.5 text-emerald-400">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              Live Pass Verification Active
             </span>
-            <div className="flex flex-wrap gap-1.5">
-              <Button
-                variant="outline"
-                size="sm"
-                className="text-[11px] font-mono h-7 px-2 border-border bg-background hover:bg-card"
-                onClick={() => setScanCode("HR-7892-4910")}
-              >
-                HR-7892-4910 (Valid)
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="text-[11px] font-mono h-7 px-2 border-border bg-background hover:bg-card"
-                onClick={() => setScanCode("HR-3184-9022")}
-              >
-                HR-3184-9022 (Used)
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="text-[11px] font-mono h-7 px-2 border-border bg-background hover:bg-card"
-                onClick={() => setScanCode("HR-9999-FAKE")}
-              >
-                HR-9999-FAKE (Invalid)
-              </Button>
-            </div>
+            <a
+              href="/admin/scan"
+              className="text-amber-400 hover:text-amber-300 underline flex items-center gap-1"
+            >
+              Open Camera Scanner &rarr;
+            </a>
           </div>
 
           {/* Scan Result Feedback Box */}

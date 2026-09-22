@@ -22,27 +22,8 @@ export interface RefundRecord {
   createdAt: string;
 }
 
-// In-Memory Synchronized Store for Refunds
+// In-Memory Synchronized Store for Refunds (starts empty, populated upon live organizer actions)
 const refundsStore = new Map<string, RefundRecord>();
-
-// Seed a sample processed refund for rich ledger preview
-const seedRefund: RefundRecord = {
-  id: "ref-seed-001",
-  transactionId: "tx_seed_005",
-  orderId: "ord-demo-rift-005",
-  orderNumber: "HR-2026-9046",
-  ticketNumber: "HR-1209-7734",
-  attendeeName: "Samantha Njeri",
-  amountKes: 1800,
-  originalAmountKes: 1800,
-  reason: "Customer travel cancellation request prior to cut-off",
-  refundType: "full",
-  status: "processed",
-  processedBy: "admin-erastus@verve.co.ke",
-  refundRef: "REV-MPESA-98842",
-  createdAt: new Date(Date.now() - 3600000 * 20).toISOString(),
-};
-refundsStore.set(seedRefund.id, seedRefund);
 
 export class RefundService {
   /**

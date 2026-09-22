@@ -77,9 +77,6 @@ export function ManualVerificationTab() {
   );
   const [isRejecting, setIsRejecting] = useState(false);
 
-  // Seed State
-  const [isSeeding, setIsSeeding] = useState(false);
-
   // Fetch pending orders from API
   const fetchPendingOrders = async () => {
     setLoading(true);
@@ -177,25 +174,6 @@ export function ManualVerificationTab() {
     setCopiedCode(code);
     toast.success(`Copied code: ${code}`);
     setTimeout(() => setCopiedCode(null), 2000);
-  };
-
-  // Seed a demo order for quick testing
-  const handleSeedDemoOrder = async () => {
-    setIsSeeding(true);
-    try {
-      const res = await fetch("/api/admin/orders/seed-demo", { method: "POST" });
-      const data = await res.json();
-      if (data.success) {
-        toast.success("Sample order created for verification testing!");
-        await fetchPendingOrders();
-      } else {
-        toast.error("Could not seed demo order: " + data.message);
-      }
-    } catch (err) {
-      toast.error("Error creating demo order");
-    } finally {
-      setIsSeeding(false);
-    }
   };
 
   // Execute Approval
@@ -333,20 +311,10 @@ export function ManualVerificationTab() {
         </div>
 
         <div className="flex items-center gap-2.5">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleSeedDemoOrder}
-            disabled={isSeeding}
-            className="text-xs border-amber-500/40 text-amber-300 hover:bg-amber-950/30"
-          >
-            {isSeeding ? (
-              <RefreshCw className="w-3.5 h-3.5 mr-1.5 animate-spin" />
-            ) : (
-              <PlusCircle className="w-3.5 h-3.5 mr-1.5" />
-            )}
-            Test Sample Order
-          </Button>
+          <div className="flex items-center gap-1.5 px-2.5 py-1 bg-emerald-950/40 border border-emerald-500/30 rounded text-emerald-400 font-mono text-xs">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span>Live Sync Active</span>
+          </div>
 
           <Button
             variant="ghost"
@@ -435,20 +403,14 @@ export function ManualVerificationTab() {
           <div className="space-y-1">
             <h3 className="font-display text-lg text-bone">Queue is all clear!</h3>
             <p className="text-xs text-muted-foreground font-mono max-w-md mx-auto">
-              No orders are currently waiting for M-Pesa approval. New buyer checkout submissions
+              No orders are currently waiting for M-Pesa approval. New customer checkout submissions
               will appear here in real-time.
             </p>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleSeedDemoOrder}
-            disabled={isSeeding}
-            className="text-xs border-amber-500/30 text-amber-300 hover:bg-amber-950/20"
-          >
-            <PlusCircle className="w-3.5 h-3.5 mr-1.5" />
-            Create Sample Order to Test Flow
-          </Button>
+          <div className="inline-flex items-center gap-2 text-xs font-mono text-emerald-400/90 bg-emerald-950/20 border border-emerald-500/20 px-3 py-1.5 rounded">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+            Listening for incoming M-Pesa submissions
+          </div>
         </div>
       ) : (
         <div className="space-y-4">

@@ -39,6 +39,7 @@ import { NotificationCenterTab } from "@/components/admin/notification-center-ta
 import { AnalyticsLiveTab } from "@/components/admin/analytics-live-tab";
 import { ManualVerificationTab } from "@/components/admin/manual-verification-tab";
 import { useAdminAuth } from "@/lib/auth/admin-auth-context";
+import { subscribeToTickets, type FirestoreTicket } from "@/lib/firebase/firestore-service";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/admin")({
@@ -84,7 +85,7 @@ function AdminDashboardContent() {
   const [metrics, setMetrics] = useState<OverviewMetrics | null>(null);
   const [isLoadingMetrics, setIsLoadingMetrics] = useState(true);
 
-  // Fetch overview metrics from backend
+  // Fetch overview metrics from backend and subscribe to live Firestore updates
   const fetchMetrics = async () => {
     setIsLoadingMetrics(true);
     try {
@@ -102,7 +103,7 @@ function AdminDashboardContent() {
         });
       }
     } catch (err) {
-      console.warn("Failed to load metrics:", err);
+      console.warn("Failed to load metrics from API:", err);
     } finally {
       setIsLoadingMetrics(false);
     }
@@ -110,6 +111,55 @@ function AdminDashboardContent() {
 
   useEffect(() => {
     fetchMetrics();
+
+    // Subscribe to live Firestore tickets to keep dashboard metrics perfectly in sync
+    const unsubscribeTickets = subscribeToTickets((liveTickets: FirestoreTicket[]) => {
+      if (liveTickets && liveTickets.length > 0) {
+        setMetrics((prev) => {
+          const totalSold = liveTickets.length;
+          const checkedInCount = liveTickets.filter((t) => t.status === "used").length;
+          const totalRevenueKes = liveTickets
+            .filter((t) => t.status !== "cancelled" && t.status !== "refunded")
+            .reduce((sum, t) => sum + (t.priceKes || 0), 0);
+          const totalCapacity = 800;
+          const remainingCapacity = Math.max(0, totalCapacity - totalSold);
+
+          // Compute hourly sales velocity from actual timestamps
+          const hourMap = new Map<string, { sales: number; count: number }>();
+          liveTickets
+            .filter((t) => t.status !== "cancelled")
+            .forEach((t) => {
+              const d = new Date(t.createdAt || t.scannedAt || Date.now());
+              const hourKey = `${String(d.getHours()).padStart(2, "0")}:00`;
+              const current = hourMap.get(hourKey) || { sales: 0, count: 0 };
+              current.sales += t.priceKes || 0;
+              current.count += 1;
+              hourMap.set(hourKey, current);
+            });
+          const sortedHours = Array.from(hourMap.keys()).sort();
+          const hourlySalesTrend = sortedHours.map((hour) => ({
+            hour,
+            sales: hourMap.get(hour)!.sales,
+            count: hourMap.get(hour)!.count,
+          }));
+
+          return {
+            totalRevenueKes,
+            totalTicketsSold: totalSold,
+            checkedInCount,
+            remainingCapacity,
+            activePromotionsCount: prev?.activePromotionsCount ?? 4,
+            activeScannersCount: prev?.activeScannersCount ?? 3,
+            hourlySalesTrend: hourlySalesTrend.length > 0 ? hourlySalesTrend : (prev?.hourlySalesTrend ?? []),
+          };
+        });
+      }
+      setIsLoadingMetrics(false);
+    });
+
+    return () => {
+      if (unsubscribeTickets) unsubscribeTickets();
+    };
   }, []);
 
   const handleSignOut = async () => {
@@ -319,6 +369,12 @@ function AdminDashboardContent() {
 
           {/* Right Header: Explicit Role Indicator & Fast Tester */}
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+            {/* LIVE FIRESTORE SYNC BADGE */}
+            <div className="flex items-center gap-1.5 border border-emerald-500/40 bg-emerald-950/40 px-2 py-1 text-emerald-400 font-mono text-[11px]">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="hidden sm:inline font-semibold">LIVE SYNC ACTIVE</span>
+            </div>
+
             {/* EXPLICIT ROLE INDICATOR BADGE */}
             <div className="flex items-center gap-1.5 border border-amber-500/50 bg-amber-950/40 px-2.5 py-1 rounded-none shadow-[0_0_12px_rgba(245,158,11,0.15)]">
               <ShieldCheck className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
@@ -427,40 +483,42 @@ function AdminDashboardContent() {
                     </Badge>
                   </div>
 
-                  <div className="mt-6 flex h-48 items-end gap-2 border-b border-l border-border/80 px-2 pb-2">
-                    {(
-                      metrics?.hourlySalesTrend || [
-                        { hour: "10:00", sales: 12000, count: 6 },
-                        { hour: "12:00", sales: 24000, count: 12 },
-                        { hour: "14:00", sales: 48000, count: 20 },
-                        { hour: "16:00", sales: 85000, count: 35 },
-                        { hour: "18:00", sales: 140000, count: 58 },
-                        { hour: "20:00", sales: 220000, count: 85 },
-                        { hour: "22:00", sales: 310000, count: 110 },
-                      ]
-                    ).map((item, idx) => {
-                      const maxSale = 350000;
-                      const heightPercent = Math.max(12, Math.round((item.sales / maxSale) * 100));
-                      return (
-                        <div
-                          key={idx}
-                          className="flex-1 flex flex-col items-center gap-1 group relative"
-                        >
-                          {/* Tooltip on hover */}
-                          <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute -top-10 bg-background border border-border px-2 py-1 text-[10px] font-mono text-bone whitespace-nowrap z-10 pointer-events-none">
-                            KES {item.sales.toLocaleString()} ({item.count} tickets)
-                          </div>
+                  {metrics?.hourlySalesTrend && metrics.hourlySalesTrend.length > 0 ? (
+                    <div className="mt-6 flex h-48 items-end gap-2 border-b border-l border-border/80 px-2 pb-2">
+                      {metrics.hourlySalesTrend.map((item, idx) => {
+                        const maxSale = Math.max(...metrics.hourlySalesTrend.map((t) => t.sales), 10000);
+                        const heightPercent = Math.max(12, Math.round((item.sales / maxSale) * 100));
+                        return (
                           <div
-                            className="w-full bg-gradient-to-t from-oxblood via-oxblood/80 to-amber-500/80 hover:to-amber-400 transition-all rounded-t-none"
-                            style={{ height: `${heightPercent}%` }}
-                          />
-                          <span className="text-[9px] font-mono text-muted-foreground">
-                            {item.hour}
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
+                            key={idx}
+                            className="flex-1 flex flex-col items-center gap-1 group relative"
+                          >
+                            {/* Tooltip on hover */}
+                            <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute -top-10 bg-background border border-border px-2 py-1 text-[10px] font-mono text-bone whitespace-nowrap z-10 pointer-events-none">
+                              KES {item.sales.toLocaleString()} ({item.count} tickets)
+                            </div>
+                            <div
+                              className="w-full bg-gradient-to-t from-oxblood via-oxblood/80 to-amber-500/80 hover:to-amber-400 transition-all rounded-t-none"
+                              style={{ height: `${heightPercent}%` }}
+                            />
+                            <span className="text-[9px] font-mono text-muted-foreground">
+                              {item.hour}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="mt-6 flex h-48 items-center justify-center border-b border-l border-border/80 px-4 pb-2 text-center text-xs font-mono text-muted-foreground">
+                      <div className="space-y-2">
+                        <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse mx-auto" />
+                        <p className="text-bone font-medium">Real-Time Telemetry Connected</p>
+                        <p className="text-[11px] text-muted-foreground max-w-sm">
+                          Hourly checkout velocity will graph here automatically as passes are issued and approved.
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Operations Quick Shortcuts */}

@@ -32,6 +32,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { QRCodeSVG } from "qrcode.react";
 import { toast } from "sonner";
 import { useAdminAuth } from "../../lib/auth/admin-auth-context";
+import { subscribeToTickets, type FirestoreTicket } from "../../lib/firebase/firestore-service";
 
 export interface TicketItem {
   id: string;
@@ -90,18 +91,26 @@ export function TicketManagementTab() {
 
   const [isResending, setIsResending] = useState<string | null>(null);
 
-  // Load tickets from server
+  // Load tickets from server and subscribe to Firestore live stream
   const fetchTickets = async () => {
     setIsLoading(true);
     try {
       const res = await fetch("/api/admin/tickets");
       const data = await res.json();
       if (data.success && Array.isArray(data.tickets)) {
-        setTickets(data.tickets);
+        setTickets((prev) => {
+          const map = new Map<string, TicketItem>();
+          data.tickets.forEach((t: TicketItem) => map.set(t.ticketNumber, t));
+          prev.forEach((t) => {
+            if (!map.has(t.ticketNumber)) map.set(t.ticketNumber, t);
+          });
+          return Array.from(map.values()).sort(
+            (a, b) => new Date(b.issuedAt).getTime() - new Date(a.issuedAt).getTime(),
+          );
+        });
       }
     } catch (err) {
-      console.error("Failed to load tickets:", err);
-      toast.error("Could not fetch tickets from server.");
+      console.warn("Server tickets fetch fallback:", err);
     } finally {
       setIsLoading(false);
     }
@@ -109,6 +118,55 @@ export function TicketManagementTab() {
 
   useEffect(() => {
     fetchTickets();
+
+    // Real-time synchronization with Firestore tickets collection
+    const unsubscribe = subscribeToTickets((liveTickets: FirestoreTicket[]) => {
+      if (liveTickets) {
+        setTickets((prev) => {
+          const map = new Map<string, TicketItem>();
+          // Retain any existing server-side tickets
+          prev.forEach((t) => map.set(t.ticketNumber, t));
+
+          // Apply live Firestore tickets
+          liveTickets.forEach((ft) => {
+            map.set(ft.ticketNumber, {
+              id: ft.ticketNumber,
+              orderId: ft.orderId,
+              orderNumber: ft.orderNumber || ft.orderId,
+              ticketNumber: ft.ticketNumber,
+              qrHash: ft.qrHash || ft.ticketNumber,
+              tierSlug: ft.tierSlug || "general-admission",
+              tierName: ft.tierName || "General Admission",
+              admitsCount: ft.admitsCount || 1,
+              attendeeName: ft.attendeeName,
+              buyerEmail: ft.attendeeEmail,
+              buyerPhone: ft.buyerPhone || "",
+              status: ft.status || "valid",
+              priceKes: ft.priceKes || 0,
+              issuedAt: ft.createdAt || new Date().toISOString(),
+              scannedBy: ft.scannedBy || null,
+              usedAt: ft.scannedAt || null,
+              venue: {
+                name: "Top Cliff Lounge",
+                address: "Nakuru-Nairobi Highway, Free Area",
+                city: "Nakuru, Kenya",
+                date: "Saturday, 31 October 2026",
+                time: "4:00 PM - 4:00 AM EAT",
+              },
+            });
+          });
+
+          return Array.from(map.values()).sort(
+            (a, b) => new Date(b.issuedAt).getTime() - new Date(a.issuedAt).getTime(),
+          );
+        });
+      }
+      setIsLoading(false);
+    });
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
   }, []);
 
   // Filtered tickets
@@ -285,16 +343,23 @@ export function TicketManagementTab() {
             />
           </div>
 
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={fetchTickets}
-            disabled={isLoading}
-            className="border-border text-lavender hover:text-bone text-xs h-10 px-3 shrink-0"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${isLoading ? "animate-spin" : ""}`} />
-            Refresh Data
-          </Button>
+          <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-emerald-950/40 border border-emerald-500/30 rounded text-emerald-400 font-mono text-xs">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span>Live Firestore Sync</span>
+            </div>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={fetchTickets}
+              disabled={isLoading}
+              className="border-border text-lavender hover:text-bone text-xs h-10 px-3 shrink-0"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${isLoading ? "animate-spin" : ""}`} />
+              Refresh Data
+            </Button>
+          </div>
         </div>
 
         {/* Filter Dropdowns */}
@@ -395,9 +460,16 @@ export function TicketManagementTab() {
               <TableRow>
                 <TableCell
                   colSpan={7}
-                  className="h-32 text-center text-muted-foreground text-xs font-mono"
+                  className="h-40 text-center text-muted-foreground text-xs font-mono space-y-2"
                 >
-                  No tickets found matching your filter criteria.
+                  <div className="w-10 h-10 rounded-full bg-card border border-border grid place-items-center mx-auto text-amber-400 mb-2">
+                    <ShieldCheck className="w-5 h-5" />
+                  </div>
+                  <p className="text-bone font-display text-sm">No Digital Passes Issued Yet</p>
+                  <p className="max-w-md mx-auto text-muted-foreground text-[11px]">
+                    Passes are generated cryptographically when customer orders are approved in the
+                    M-Pesa Verification Queue or via direct checkout. Live synchronization is active.
+                  </p>
                 </TableCell>
               </TableRow>
             ) : (

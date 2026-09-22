@@ -44,7 +44,7 @@ const promotionsStore = new Map<string, PromotionRecord>();
 const auditLogsStore: AuditLogEntry[] = [];
 const scannersStore = new Map<string, ScannerDeviceRecord>();
 
-// Seed Default Promo Codes
+// Seed Promotion Codes with pristine usage counts
 const defaultPromos: PromotionRecord[] = [
   {
     id: "promo-001",
@@ -53,10 +53,10 @@ const defaultPromos: PromotionRecord[] = [
     discountType: "percentage",
     discountValue: 20,
     maxUses: 100,
-    currentUses: 45,
+    currentUses: 0,
     expiresAt: new Date(Date.now() + 30 * 86400000).toISOString(),
     isActive: true,
-    createdAt: new Date(Date.now() - 5 * 86400000).toISOString(),
+    createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   },
   {
@@ -66,10 +66,10 @@ const defaultPromos: PromotionRecord[] = [
     discountType: "fixed",
     discountValue: 500,
     maxUses: 50,
-    currentUses: 12,
+    currentUses: 0,
     expiresAt: new Date(Date.now() + 14 * 86400000).toISOString(),
     isActive: true,
-    createdAt: new Date(Date.now() - 3 * 86400000).toISOString(),
+    createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   },
   {
@@ -79,10 +79,10 @@ const defaultPromos: PromotionRecord[] = [
     discountType: "percentage",
     discountValue: 50,
     maxUses: 20,
-    currentUses: 19,
+    currentUses: 0,
     expiresAt: new Date(Date.now() + 7 * 86400000).toISOString(),
     isActive: true,
-    createdAt: new Date(Date.now() - 2 * 86400000).toISOString(),
+    createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   },
   {
@@ -92,53 +92,40 @@ const defaultPromos: PromotionRecord[] = [
     discountType: "percentage",
     discountValue: 10,
     maxUses: 200,
-    currentUses: 88,
+    currentUses: 0,
     expiresAt: new Date(Date.now() + 45 * 86400000).toISOString(),
     isActive: true,
-    createdAt: new Date(Date.now() - 10 * 86400000).toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: "promo-005",
-    code: "EXPIRED2025",
-    name: "Past Campaign (Archived)",
-    discountType: "percentage",
-    discountValue: 15,
-    maxUses: 50,
-    currentUses: 50,
-    expiresAt: new Date(Date.now() - 10 * 86400000).toISOString(),
-    isActive: false,
-    createdAt: new Date(Date.now() - 60 * 86400000).toISOString(),
+    createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   },
 ];
 
 defaultPromos.forEach((p) => promotionsStore.set(p.code.toUpperCase(), p));
 
-// Seed Demo Scanner Devices
+// Scanner Fleet Terminals (pristine scan counts synced with gate activity)
 const defaultScanners: ScannerDeviceRecord[] = [
   {
     id: "scan-001",
     name: "Gate Alpha Primary",
-    operatorName: "Kenneth Omondi",
+    operatorName: "Gate Security Staff",
     gateLocation: "Main Top Cliff Entrance (Highway Gate)",
     status: "active",
-    scansCount: 42,
-    lastScanAt: new Date(Date.now() - 8 * 60000).toISOString(),
+    scansCount: 0,
+    lastScanAt: null,
   },
   {
     id: "scan-002",
     name: "VIP Portal Handheld",
-    operatorName: "Serah Wanjiru",
+    operatorName: "VIP Security Team",
     gateLocation: "Hellfire VIP Red Carpet Chute",
     status: "active",
-    scansCount: 18,
-    lastScanAt: new Date(Date.now() - 22 * 60000).toISOString(),
+    scansCount: 0,
+    lastScanAt: null,
   },
   {
     id: "scan-003",
     name: "Gate Beta Backup",
-    operatorName: "David Kiprop",
+    operatorName: "West Perimeter Team",
     gateLocation: "West Amphitheater Service Entry",
     status: "standby",
     scansCount: 0,
@@ -255,7 +242,35 @@ export class AdminServerService {
       activeScannersCount: scanners.filter((s) => s.status === "active").length,
       recentTickets: tickets.slice(0, 5),
       recentAuditLogs: auditLogsStore.slice(0, 8),
+      hourlySalesTrend: this.getHourlySalesTrend(),
     };
+  }
+
+  /**
+   * Get Hourly Sales Trend derived from actual issued tickets
+   */
+  static getHourlySalesTrend(): Array<{ hour: string; sales: number; count: number }> {
+    const tickets = TicketsServerService.getAllTickets().filter((t) => t.status !== "cancelled");
+    if (tickets.length === 0) {
+      return [];
+    }
+
+    const hourMap = new Map<string, { sales: number; count: number }>();
+    for (const t of tickets) {
+      const date = new Date(t.issuedAt);
+      const hourKey = `${String(date.getHours()).padStart(2, "0")}:00`;
+      const current = hourMap.get(hourKey) || { sales: 0, count: 0 };
+      current.sales += t.priceKes || 0;
+      current.count += 1;
+      hourMap.set(hourKey, current);
+    }
+
+    const sortedHours = Array.from(hourMap.keys()).sort();
+    return sortedHours.map((hour) => ({
+      hour,
+      sales: hourMap.get(hour)!.sales,
+      count: hourMap.get(hour)!.count,
+    }));
   }
 
   /**
