@@ -23,6 +23,7 @@ import {
   Receipt,
   Camera,
   MessageSquare,
+  Mail,
   type LucideIcon,
 } from "lucide-react";
 import { useState, useEffect } from "react";
@@ -38,6 +39,7 @@ import { AuditLogTab } from "@/components/admin/audit-log-tab";
 import { NotificationCenterTab } from "@/components/admin/notification-center-tab";
 import { AnalyticsLiveTab } from "@/components/admin/analytics-live-tab";
 import { ManualVerificationTab } from "@/components/admin/manual-verification-tab";
+import { GmailInboxTab } from "@/components/admin/gmail-inbox-tab";
 import { useAdminAuth } from "@/lib/auth/admin-auth-context";
 import { subscribeToTickets, type FirestoreTicket } from "@/lib/firebase/firestore-service";
 import { toast } from "sonner";
@@ -186,6 +188,12 @@ function AdminDashboardContent() {
       label: "Live Page Analytics",
       icon: BarChart3,
       badge: "Firebase",
+    },
+    {
+      id: "gmail",
+      label: "Official Gmail",
+      icon: Mail,
+      badge: "Google API",
     },
     {
       id: "tickets",
@@ -601,6 +609,9 @@ function AdminDashboardContent() {
 
           {/* TAB: REAL-TIME PAGE ANALYTICS (FIREBASE) */}
           {activeTab === "analytics" && <AnalyticsLiveTab />}
+
+          {/* TAB: OFFICIAL GMAIL WORKSPACE INTEGRATION */}
+          {activeTab === "gmail" && <GmailInboxTab />}
 
           {/* TAB: MANUAL M-PESA APPROVAL QUEUE */}
           {activeTab === "verifications" && <ManualVerificationTab />}

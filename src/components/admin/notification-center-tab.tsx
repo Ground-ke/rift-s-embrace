@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   MessageSquare,
   Mail,
@@ -16,14 +16,66 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { GoogleSignInButton } from "@/components/brand/google-sign-in-button";
+import {
+  signInWithGmail,
+  sendGmailMessage,
+  getCachedGmailToken,
+  fetchGmailProfile,
+  type GmailProfile,
+} from "@/lib/google/gmail-client";
+import {
+  generateBookingConfirmationEmailHtml,
+  generateEventReminder24hEmailHtml,
+  generateRefundNoticeEmailHtml,
+} from "@/lib/email-templates";
 
-type NotificationChannel = "whatsapp" | "email";
+type NotificationChannel = "whatsapp" | "email" | "gmail";
 type TemplateKey = "booking_confirmation" | "event_reminder_24h" | "refund_notice";
 
 export function NotificationCenterTab() {
   const [activeChannel, setActiveChannel] = useState<NotificationChannel>("whatsapp");
   const [selectedTemplate, setSelectedTemplate] = useState<TemplateKey>("booking_confirmation");
+
+  // Gmail Auth & Confirmation State
+  const [gmailToken, setGmailToken] = useState<string | null>(getCachedGmailToken());
+  const [gmailProfile, setGmailProfile] = useState<GmailProfile | null>(null);
+  const [isGmailConnecting, setIsGmailConnecting] = useState(false);
+  const [isGmailConfirmOpen, setIsGmailConfirmOpen] = useState(false);
+
+  useEffect(() => {
+    const token = getCachedGmailToken();
+    if (token) {
+      setGmailToken(token);
+      fetchGmailProfile(token)
+        .then(setGmailProfile)
+        .catch(() => {});
+    }
+  }, []);
+
+  const handleConnectGmail = async () => {
+    setIsGmailConnecting(true);
+    try {
+      const res = await signInWithGmail();
+      setGmailToken(res.accessToken);
+      const prof = await fetchGmailProfile(res.accessToken);
+      setGmailProfile(prof);
+      toast.success(`Connected to Gmail as ${prof.emailAddress}`);
+    } catch (err) {
+      toast.error(`Google Sign-In failed: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setIsGmailConnecting(false);
+    }
+  };
 
   // Test form state
   const [testPhone, setTestPhone] = useState("+254712345678");
@@ -127,6 +179,15 @@ export function NotificationCenterTab() {
   };
 
   const handleSendTestNotification = async () => {
+    if (activeChannel === "gmail") {
+      if (!gmailToken) {
+        toast.error("Please connect your Google Workspace account first.");
+        return;
+      }
+      setIsGmailConfirmOpen(true);
+      return;
+    }
+
     setIsSending(true);
     try {
       if (activeChannel === "whatsapp") {
@@ -219,6 +280,71 @@ export function NotificationCenterTab() {
     }
   };
 
+  const handleExecuteGmailSend = async () => {
+    if (!gmailToken) return;
+    setIsSending(true);
+    try {
+      let html = "";
+      let subj = "";
+      if (selectedTemplate === "booking_confirmation") {
+        subj = `Your Pass to Hauntings of the Rift (${orderId}) — Official Admission`;
+        html = generateBookingConfirmationEmailHtml({
+          customer_name: customerName,
+          ticket_tier: passTier,
+          quantity: Number(quantity) || 1,
+          total_amount: Number(totalKes).toLocaleString(),
+          order_id: orderId,
+          event_date: "Saturday, 31 October 2026",
+          ticket_url: "https://hauntingsoftherift.co.ke/ticket/demo",
+        });
+      } else if (selectedTemplate === "event_reminder_24h") {
+        subj = "24 Hours Until Hauntings of the Rift — Gate & Arrival Instructions";
+        html = generateEventReminder24hEmailHtml({
+          customer_name: customerName,
+          venue_name: "Top Cliff Lounge, Nakuru",
+          gate_opening_time: "18:00 EAT",
+          ticket_tier: passTier,
+          ticket_url: "https://hauntingsoftherift.co.ke/ticket/demo",
+        });
+      } else {
+        subj = `Refund Confirmation — Hauntings of the Rift (${orderId})`;
+        html = generateRefundNoticeEmailHtml({
+          customer_name: customerName,
+          refund_amount: Number(totalKes).toLocaleString(),
+          payment_ref: paymentRef,
+          refund_reason: refundReason,
+          order_id: orderId,
+        });
+      }
+
+      const sendRes = await sendGmailMessage(gmailToken, {
+        to: testEmail,
+        subject: subj,
+        bodyHtml: html,
+      });
+
+      toast.success("Official email dispatched via Gmail API!");
+      setIsGmailConfirmOpen(false);
+
+      setDispatchLogs((prev) => [
+        {
+          id: `log-gmail-${Date.now()}`,
+          time: new Date().toLocaleTimeString(),
+          channel: "Official Gmail API",
+          template: selectedTemplate,
+          recipient: testEmail,
+          status: "sent",
+          details: `Sent from ${gmailProfile?.emailAddress || "Google"}. Message ID: ${sendRes.id}`,
+        },
+        ...prev,
+      ]);
+    } catch (err) {
+      toast.error(`Gmail dispatch failed: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setIsSending(false);
+    }
+  };
+
   const handleBroadcast24hReminders = async () => {
     setIsBroadcasting(true);
     try {
@@ -286,28 +412,39 @@ export function NotificationCenterTab() {
             <label className="text-[11px] font-mono uppercase tracking-widest text-muted-foreground block mb-3">
               Delivery Channel
             </label>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-3 gap-2">
               <button
                 onClick={() => setActiveChannel("whatsapp")}
-                className={`flex items-center justify-center gap-2 py-2.5 px-3 text-xs font-medium border transition-all ${
+                className={`flex flex-col items-center justify-center gap-1.5 py-2.5 px-2 text-[11px] font-medium border transition-all text-center ${
                   activeChannel === "whatsapp"
                     ? "bg-emerald-950/40 border-emerald-500 text-emerald-400 font-semibold"
                     : "border-border/60 text-muted-foreground hover:text-bone hover:border-border"
                 }`}
               >
                 <MessageSquare className="w-4 h-4" />
-                WhatsApp (Meta)
+                <span>WhatsApp</span>
               </button>
               <button
                 onClick={() => setActiveChannel("email")}
-                className={`flex items-center justify-center gap-2 py-2.5 px-3 text-xs font-medium border transition-all ${
+                className={`flex flex-col items-center justify-center gap-1.5 py-2.5 px-2 text-[11px] font-medium border transition-all text-center ${
                   activeChannel === "email"
                     ? "bg-orange-950/40 border-orange-500 text-orange-400 font-semibold"
                     : "border-border/60 text-muted-foreground hover:text-bone hover:border-border"
                 }`}
               >
                 <Mail className="w-4 h-4" />
-                HTML Email (Resend)
+                <span>Resend</span>
+              </button>
+              <button
+                onClick={() => setActiveChannel("gmail")}
+                className={`flex flex-col items-center justify-center gap-1.5 py-2.5 px-2 text-[11px] font-medium border transition-all text-center ${
+                  activeChannel === "gmail"
+                    ? "bg-amber-950/40 border-amber-500 text-amber-400 font-semibold"
+                    : "border-border/60 text-muted-foreground hover:text-bone hover:border-border"
+                }`}
+              >
+                <Mail className="w-4 h-4 text-amber-400" />
+                <span>Gmail API</span>
               </button>
             </div>
           </div>
@@ -393,6 +530,35 @@ export function NotificationCenterTab() {
               </div>
             )}
 
+            {activeChannel === "gmail" && (
+              <div className="p-3 bg-background/90 border border-amber-500/30 space-y-2">
+                <span className="text-[10px] font-mono uppercase text-muted-foreground block">
+                  Gmail Workspace Status
+                </span>
+                {!gmailToken ? (
+                  <GoogleSignInButton
+                    onClick={handleConnectGmail}
+                    isLoading={isGmailConnecting}
+                    label="Sign in to Authorized Gmail"
+                    className="w-full"
+                  />
+                ) : (
+                  <div className="flex items-center justify-between text-xs font-mono">
+                    <span className="text-emerald-400 flex items-center gap-1.5 truncate">
+                      <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                      {gmailProfile?.emailAddress || "Connected"}
+                    </span>
+                    <Badge
+                      variant="outline"
+                      className="text-[9px] font-mono text-amber-300 border-amber-500/40"
+                    >
+                      OAuth Active
+                    </Badge>
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-[10px] text-muted-foreground block mb-1">
@@ -445,7 +611,11 @@ export function NotificationCenterTab() {
               <Send className="w-3.5 h-3.5 mr-2" />
               {isSending
                 ? "Dispatching..."
-                : `Send Test ${activeChannel === "whatsapp" ? "WhatsApp" : "Email"}`}
+                : activeChannel === "whatsapp"
+                  ? "Send Test WhatsApp"
+                  : activeChannel === "email"
+                    ? "Send Test Email (Resend)"
+                    : "Send via Official Gmail"}
             </Button>
           </div>
         </div>
@@ -660,6 +830,81 @@ export function NotificationCenterTab() {
           </table>
         </div>
       </div>
+
+      {/* MANDATORY USER CONFIRMATION DIALOG FOR GMAIL (Workspace Integration Requirement) */}
+      <Dialog open={isGmailConfirmOpen} onOpenChange={setIsGmailConfirmOpen}>
+        <DialogContent className="bg-card border border-border text-bone max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-display text-lg text-bone flex items-center gap-2">
+              <Mail className="w-5 h-5 text-amber-400" />
+              Confirm Gmail Dispatch
+            </DialogTitle>
+            <DialogDescription className="text-xs font-sans text-muted-foreground">
+              Verify recipient and template before transmitting message via Google Workspace.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 py-2 text-xs font-mono">
+            <div className="p-3 bg-background border border-border space-y-1.5">
+              <div>
+                <span className="text-muted-foreground text-[10px] uppercase">
+                  From (Verified Account):
+                </span>
+                <p className="text-amber-400 font-semibold">
+                  {gmailProfile?.emailAddress || "Google Workspace"}
+                </p>
+              </div>
+              <div>
+                <span className="text-muted-foreground text-[10px] uppercase">To:</span>
+                <p className="text-bone font-semibold">{testEmail}</p>
+              </div>
+              <div>
+                <span className="text-muted-foreground text-[10px] uppercase">Template:</span>
+                <p className="text-lavender uppercase">{selectedTemplate}</p>
+              </div>
+              <div>
+                <span className="text-muted-foreground text-[10px] uppercase">Order ID:</span>
+                <p className="text-bone">{orderId}</p>
+              </div>
+            </div>
+
+            <p className="text-[11px] text-muted-foreground font-sans">
+              This message will be dispatched directly through your verified Gmail account.
+              Destructive or mutating operations cannot be recalled once sent.
+            </p>
+          </div>
+
+          <DialogFooter className="flex sm:justify-between gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsGmailConfirmOpen(false)}
+              disabled={isSending}
+              className="border-border text-muted-foreground hover:text-bone text-xs font-mono"
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleExecuteGmailSend}
+              disabled={isSending}
+              className="bg-amber-500 hover:bg-amber-600 text-black font-semibold text-xs font-mono"
+            >
+              {isSending ? (
+                <>
+                  <RefreshCw className="w-3.5 h-3.5 mr-2 animate-spin" />
+                  Sending...
+                </>
+              ) : (
+                <>
+                  <Send className="w-3.5 h-3.5 mr-2" />
+                  Confirm &amp; Send
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

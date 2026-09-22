@@ -20,6 +20,7 @@ import {
   sendEmailNotificationSchema,
 } from "../lib/validation/api-schemas";
 import { sanitizeObject } from "../lib/validation/sanitizer";
+import { isCloudSqlConfigured } from "../db/index.ts";
 
 export async function handleApiRequest(request: Request): Promise<Response> {
   const url = new URL(request.url);
@@ -73,7 +74,29 @@ export async function handleApiRequest(request: Request): Promise<Response> {
     // 1. Health check
     // --------------------------------------------------------------------------
     if (pathname === "/api/health") {
-      return json({ status: "ok", time: new Date().toISOString() });
+      return json({
+        status: "ok",
+        runtime: process.env.VERCEL ? "vercel" : "node",
+        time: new Date().toISOString(),
+        databases: {
+          cloudSqlConfigured: isCloudSqlConfigured(),
+          supabaseConfigured: Boolean(
+            process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY,
+          ),
+          firebaseConfigured: Boolean(
+            process.env.FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID,
+          ),
+        },
+        services: {
+          mpesaConfigured: Boolean(
+            process.env.MPESA_CONSUMER_KEY && process.env.MPESA_CONSUMER_SECRET,
+          ),
+          resendConfigured: Boolean(process.env.RESEND_API_KEY),
+          whatsappConfigured: Boolean(
+            process.env.WHATSAPP_API_KEY || process.env.TWILIO_AUTH_TOKEN,
+          ),
+        },
+      });
     }
 
     // --------------------------------------------------------------------------

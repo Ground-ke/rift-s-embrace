@@ -3,14 +3,40 @@ import { getAuth } from "firebase/auth";
 import { getFirestore, doc, getDocFromServer } from "firebase/firestore";
 import firebaseConfig from "../../../firebase-applet-config.json";
 
+// Resolve config with fallback to environment variables for Vercel and multi-environment deployments
+const resolvedConfig = {
+  ...firebaseConfig,
+  apiKey:
+    (typeof import.meta !== "undefined" && import.meta.env?.VITE_FIREBASE_API_KEY) ||
+    firebaseConfig.apiKey,
+  authDomain:
+    (typeof import.meta !== "undefined" && import.meta.env?.VITE_FIREBASE_AUTH_DOMAIN) ||
+    firebaseConfig.authDomain,
+  projectId:
+    (typeof import.meta !== "undefined" && import.meta.env?.VITE_FIREBASE_PROJECT_ID) ||
+    firebaseConfig.projectId,
+  storageBucket:
+    (typeof import.meta !== "undefined" && import.meta.env?.VITE_FIREBASE_STORAGE_BUCKET) ||
+    firebaseConfig.storageBucket,
+  messagingSenderId:
+    (typeof import.meta !== "undefined" && import.meta.env?.VITE_FIREBASE_MESSAGING_SENDER_ID) ||
+    firebaseConfig.messagingSenderId,
+  appId:
+    (typeof import.meta !== "undefined" && import.meta.env?.VITE_FIREBASE_APP_ID) ||
+    firebaseConfig.appId,
+  firestoreDatabaseId:
+    (typeof import.meta !== "undefined" && import.meta.env?.VITE_FIREBASE_FIRESTORE_DATABASE_ID) ||
+    firebaseConfig.firestoreDatabaseId,
+};
+
 export const isFirebaseConfigured = Boolean(
-  firebaseConfig && firebaseConfig.apiKey && firebaseConfig.projectId,
+  resolvedConfig && resolvedConfig.apiKey && resolvedConfig.projectId,
 );
 
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+const app = getApps().length === 0 ? initializeApp(resolvedConfig) : getApp();
 
 /* CRITICAL: The app will break without this line */
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+export const db = getFirestore(app, resolvedConfig.firestoreDatabaseId);
 export const auth = getAuth(app);
 
 export enum OperationType {

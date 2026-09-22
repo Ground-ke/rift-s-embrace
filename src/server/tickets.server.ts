@@ -6,6 +6,8 @@ import {
 } from "./crypto";
 import { sendTicketConfirmationEmail, sendRecoveryEmail } from "./email.server";
 import { OrderService } from "./order-service";
+import { isCloudSqlConfigured } from "../db/index.ts";
+import { insertTickets, updateTicketStatus } from "../db/tickets.ts";
 
 export interface DigitalTicketRecord {
   id: string;
@@ -143,6 +145,27 @@ export class TicketsServerService {
       issuedTickets.push(ticketRecord);
     }
 
+    if (isCloudSqlConfigured() && issuedTickets.length > 0) {
+      insertTickets(
+        issuedTickets.map((t) => ({
+          ticketNumber: t.ticketNumber,
+          orderId: t.orderId,
+          orderNumber: t.orderNumber,
+          attendeeName: t.attendeeName,
+          attendeeEmail: t.buyerEmail || null,
+          buyerPhone: t.buyerPhone,
+          tierSlug: t.tierSlug,
+          tierName: t.tierName,
+          admitsCount: t.admitsCount,
+          priceKes: t.priceKes,
+          qrHash: t.qrHash,
+          status: t.status,
+        })),
+      ).catch((err) => {
+        console.warn("Cloud SQL tickets sync notice:", err);
+      });
+    }
+
     return issuedTickets;
   }
 
@@ -196,6 +219,27 @@ export class TicketsServerService {
 
       ticketsStore.set(ticketNumber, ticketRecord);
       issuedTickets.push(ticketRecord);
+    }
+
+    if (isCloudSqlConfigured() && issuedTickets.length > 0) {
+      insertTickets(
+        issuedTickets.map((t) => ({
+          ticketNumber: t.ticketNumber,
+          orderId: t.orderId,
+          orderNumber: t.orderNumber,
+          attendeeName: t.attendeeName,
+          attendeeEmail: t.buyerEmail || null,
+          buyerPhone: t.buyerPhone,
+          tierSlug: t.tierSlug,
+          tierName: t.tierName,
+          admitsCount: t.admitsCount,
+          priceKes: t.priceKes,
+          qrHash: t.qrHash,
+          status: t.status,
+        })),
+      ).catch((err) => {
+        console.warn("Cloud SQL tickets sync notice:", err);
+      });
     }
 
     return issuedTickets;
@@ -488,6 +532,12 @@ export class TicketsServerService {
     ticket.usedAt = new Date().toISOString();
     ticket.scannedBy = scannedBy;
     ticketsStore.set(normalized, ticket);
+
+    if (isCloudSqlConfigured()) {
+      updateTicketStatus(normalized, "used", scannedBy).catch((err) => {
+        console.warn("Cloud SQL ticket scan status notice:", err);
+      });
+    }
 
     return {
       success: true,

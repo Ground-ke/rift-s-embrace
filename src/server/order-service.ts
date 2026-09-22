@@ -1,5 +1,7 @@
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from "crypto";
 import { supabaseServer } from "../lib/supabase/server";
+import { isCloudSqlConfigured } from "../db/index.ts";
+import { insertOrder, updateOrderStatus } from "../db/orders.ts";
 import { validateAndNormalizeKenyanPhone } from "../lib/validation/phone";
 import type { Database, OrderStatus, ReservationStatus } from "../lib/database.types";
 
@@ -297,6 +299,12 @@ export class OrderService {
       order.status = status;
       order.updatedAt = new Date().toISOString();
       ordersStore.set(orderId, order);
+
+      if (isCloudSqlConfigured()) {
+        updateOrderStatus(orderId, { status }).catch((err) => {
+          console.warn("Cloud SQL order status sync notice:", err);
+        });
+      }
     }
   }
 
@@ -312,8 +320,18 @@ export class OrderService {
 
     // Transition order to paid
     order.status = "paid";
+    order.paymentReference = receiptNumber;
     order.updatedAt = new Date().toISOString();
     ordersStore.set(orderId, order);
+
+    if (isCloudSqlConfigured()) {
+      updateOrderStatus(orderId, {
+        status: "paid",
+        paymentReference: receiptNumber,
+      }).catch((err) => {
+        console.warn("Cloud SQL finalize payment notice:", err);
+      });
+    }
 
     // Transition reservation to completed
     for (const [resId, res] of reservationsStore.entries()) {
@@ -574,6 +592,27 @@ export class OrderService {
     // Save atomically in local authoritative store
     reservationsStore.set(reservationId, newReservation);
     ordersStore.set(orderId, newOrder);
+
+    // Sync to Cloud SQL relational database if configured
+    if (isCloudSqlConfigured()) {
+      try {
+        await insertOrder({
+          id: orderId,
+          orderNumber,
+          customerName: trimmedName,
+          customerEmail: trimmedEmail || "",
+          customerPhone: normalizedPhone,
+          ticketTypeId: ticket.id,
+          ticketName: ticket.name,
+          admitsCount: ticket.admitsCount,
+          quantity,
+          totalKes,
+          status: "pending",
+        });
+      } catch (sqlErr) {
+        console.warn("Cloud SQL order sync notice:", sqlErr);
+      }
+    }
 
     // Sync to Supabase server database if available
     if (supabaseServer) {
