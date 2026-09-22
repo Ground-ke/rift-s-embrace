@@ -1,6 +1,6 @@
 {
   "name": "Hauntings of the Rift",
-  "description": "Premium Halloween nightlife event website and ticketing portal for Hauntings of the Rift in Nakuru, Kenya.",
-  "requestFramePermissions": [],
+  "description": "A premium Halloween nightlife experience in Nakuru presented by Verve & Co.",
+  "requestFramePermissions": ["camera"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

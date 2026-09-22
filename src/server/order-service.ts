@@ -16,7 +16,8 @@ export interface CreateOrderInput {
   quantity: number;
   buyerName: string;
   buyerPhone: string;
-  idempotencyKey?: string | undefined;
+  buyerEmail?: string;
+  idempotencyKey?: string;
   clientIp?: string;
 }
 
@@ -37,7 +38,13 @@ export interface ClientOrderResponse {
   currency: string;
   buyerName: string;
   buyerPhone: string;
+  buyerEmail?: string;
   status: OrderStatus;
+  mpesaCode?: string;
+  mpesaMessage?: string;
+  rejectionReason?: string;
+  approvedBy?: string;
+  approvedAt?: string;
   expiresAt: string;
   ttlSeconds: number;
 }
@@ -79,9 +86,15 @@ export interface StoredOrder {
   currency: string;
   buyerName: string;
   buyerPhone: string;
+  buyerEmail?: string;
   status: OrderStatus;
+  mpesaCode?: string;
+  mpesaMessage?: string;
+  rejectionReason?: string;
+  approvedBy?: string;
+  approvedAt?: string;
   expiresAt: string;
-  idempotencyKey?: string | undefined;
+  idempotencyKey?: string;
   requestFingerprint?: string;
   createdAt: string;
   updatedAt: string;
@@ -347,6 +360,7 @@ export class OrderService {
       quantity,
       buyerName,
       buyerPhone,
+      buyerEmail,
       idempotencyKey,
       clientIp = "unknown",
     } = input;
@@ -367,6 +381,16 @@ export class OrderService {
         success: false,
         code: "INVALID_INPUT",
         message: "Please provide a valid full name (at least 2 characters).",
+      };
+    }
+
+    // 2b. Validate Buyer Email if provided
+    const trimmedEmail = (buyerEmail || "").trim().toLowerCase();
+    if (trimmedEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+      return {
+        success: false,
+        code: "INVALID_INPUT",
+        message: "Please provide a valid email address for ticket delivery.",
       };
     }
 
@@ -538,6 +562,7 @@ export class OrderService {
       currency: "KES",
       buyerName: trimmedName,
       buyerPhone: normalizedPhone,
+      buyerEmail: trimmedEmail || undefined,
       status: "pending",
       expiresAt,
       idempotencyKey,
@@ -605,6 +630,7 @@ export class OrderService {
       currency: "KES",
       buyerName: trimmedName,
       buyerPhone: normalizedPhone,
+      buyerEmail: trimmedEmail || undefined,
       status: "pending",
       expiresAt,
       ttlSeconds: Math.round(RESERVATION_TTL_MS / 1000),
@@ -669,11 +695,135 @@ export class OrderService {
       currency: order.currency,
       buyerName: order.buyerName,
       buyerPhone: order.buyerPhone,
+      buyerEmail: order.buyerEmail,
       status: order.status,
+      mpesaCode: order.mpesaCode,
+      mpesaMessage: order.mpesaMessage,
+      rejectionReason: order.rejectionReason,
+      approvedBy: order.approvedBy,
+      approvedAt: order.approvedAt,
       expiresAt: order.expiresAt,
       ttlSeconds,
       isExpired,
     };
+  }
+
+  /**
+   * Submit M-Pesa transaction code or message from buyer for admin manual verification
+   */
+  static submitMpesaCode(params: {
+    orderId: string;
+    checkoutToken?: string;
+    mpesaCode: string;
+    mpesaMessage?: string;
+    buyerEmail?: string;
+  }): { success: boolean; order?: StoredOrder; message: string; code?: string } {
+    const { orderId, checkoutToken, mpesaCode, mpesaMessage, buyerEmail } = params;
+    const order = ordersStore.get(orderId);
+    if (!order) {
+      return { success: false, code: "NOT_FOUND", message: "Order not found." };
+    }
+
+    if (checkoutToken && !safeTokenEqual(order.checkoutToken, checkoutToken)) {
+      return { success: false, code: "UNAUTHORIZED", message: "Invalid checkout token." };
+    }
+
+    const sanitizedCode = mpesaCode.trim().toUpperCase();
+    if (sanitizedCode.length < 5) {
+      return {
+        success: false,
+        code: "INVALID_CODE",
+        message: "Please provide a valid M-Pesa transaction reference.",
+      };
+    }
+
+    order.mpesaCode = sanitizedCode;
+    if (mpesaMessage) order.mpesaMessage = mpesaMessage.trim();
+    if (buyerEmail) order.buyerEmail = buyerEmail.trim().toLowerCase();
+    order.status = "pending_approval";
+    order.updatedAt = new Date().toISOString();
+
+    // Keep the reservation alive while under admin verification (extend 24 hours)
+    order.expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+    for (const [resId, res] of reservationsStore.entries()) {
+      if (res.orderId === orderId && res.status === "active") {
+        res.expiresAt = order.expiresAt;
+        reservationsStore.set(resId, res);
+      }
+    }
+
+    ordersStore.set(orderId, order);
+    return { success: true, order, message: "M-Pesa code submitted for admin review." };
+  }
+
+  /**
+   * Admin approves an order
+   */
+  static approveOrder(params: { orderId: string; adminEmail: string }): {
+    success: boolean;
+    order?: StoredOrder;
+    message: string;
+    code?: string;
+  } {
+    const { orderId, adminEmail } = params;
+    const order = ordersStore.get(orderId);
+    if (!order) {
+      return { success: false, code: "NOT_FOUND", message: "Order not found." };
+    }
+
+    order.status = "approved";
+    order.approvedBy = adminEmail;
+    order.approvedAt = new Date().toISOString();
+    order.updatedAt = new Date().toISOString();
+
+    // Mark reservations as completed
+    for (const [resId, res] of reservationsStore.entries()) {
+      if (res.orderId === orderId) {
+        res.status = "completed";
+        reservationsStore.set(resId, res);
+      }
+    }
+
+    ordersStore.set(orderId, order);
+    return { success: true, order, message: "Order successfully approved and verified." };
+  }
+
+  /**
+   * Admin rejects an order with a reason
+   */
+  static rejectOrder(params: { orderId: string; reason: string; adminEmail: string }): {
+    success: boolean;
+    order?: StoredOrder;
+    message: string;
+    code?: string;
+  } {
+    const { orderId, reason, adminEmail } = params;
+    const order = ordersStore.get(orderId);
+    if (!order) {
+      return { success: false, code: "NOT_FOUND", message: "Order not found." };
+    }
+
+    order.status = "rejected";
+    order.rejectionReason = reason;
+    order.approvedBy = adminEmail;
+    order.updatedAt = new Date().toISOString();
+    ordersStore.set(orderId, order);
+    return { success: true, order, message: "Order rejected." };
+  }
+
+  /**
+   * Get all orders with status pending_approval
+   */
+  static getPendingOrders(): StoredOrder[] {
+    const pending: StoredOrder[] = [];
+    for (const order of ordersStore.values()) {
+      if (order.status === "pending_approval") {
+        pending.push(order);
+      }
+    }
+    return pending.sort(
+      (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
+    );
   }
 
   /**

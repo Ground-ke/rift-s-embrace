@@ -1,0 +1,324 @@
+{
+  "entities": {
+    "Admin": {
+      "title": "Admin",
+      "description": "Administrator account with management permissions",
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "Admin email address",
+          "maxLength": 100
+        },
+        "name": {
+          "type": "string",
+          "description": "Full name or alias of administrator",
+          "maxLength": 100
+        },
+        "role": {
+          "type": "string",
+          "enum": ["admin", "superadmin", "scanner"],
+          "description": "Authorization level assigned to the administrator"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO timestamp when admin record was created"
+        }
+      },
+      "required": ["email", "role"]
+    },
+    "User": {
+      "title": "User",
+      "description": "Registered user profile and identity record",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Unique Firebase Authentication UID",
+          "maxLength": 128
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "User email address",
+          "maxLength": 100
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Public display name",
+          "maxLength": 100
+        },
+        "role": {
+          "type": "string",
+          "enum": ["admin", "scanner", "customer"],
+          "description": "Assigned access role"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp when the user registered"
+        }
+      },
+      "required": ["uid", "email", "role"]
+    },
+    "AnalyticsEvent": {
+      "title": "AnalyticsEvent",
+      "description": "Telemetry event stream recorded from visitor interactions on the public site and forwarded to the admin console",
+      "type": "object",
+      "properties": {
+        "eventName": {
+          "type": "string",
+          "description": "Name of the analytics event (e.g. page_view, view_event, begin_checkout, ticket_view)",
+          "maxLength": 64
+        },
+        "pageUrl": {
+          "type": "string",
+          "description": "Full URL path where the event was triggered",
+          "maxLength": 256
+        },
+        "path": {
+          "type": "string",
+          "description": "Relative route pathname",
+          "maxLength": 128
+        },
+        "sessionId": {
+          "type": "string",
+          "description": "Anonymous client session identifier",
+          "maxLength": 64
+        },
+        "deviceType": {
+          "type": "string",
+          "description": "Device category (mobile, desktop, tablet)",
+          "maxLength": 32
+        },
+        "source": {
+          "type": "string",
+          "description": "Traffic source or referrer channel",
+          "maxLength": 128
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp when the event occurred"
+        },
+        "metadataJson": {
+          "type": "string",
+          "description": "JSON serialized additional payload details",
+          "maxLength": 2048
+        }
+      },
+      "required": ["eventName", "pageUrl", "sessionId", "timestamp"]
+    },
+    "Ticket": {
+      "title": "Ticket",
+      "description": "Digital admission ticket pass for Hauntings of the Rift",
+      "type": "object",
+      "properties": {
+        "ticketNumber": {
+          "type": "string",
+          "description": "Unique alphanumeric ticket code",
+          "maxLength": 64
+        },
+        "orderId": {
+          "type": "string",
+          "description": "Associated order identifier",
+          "maxLength": 64
+        },
+        "orderNumber": {
+          "type": "string",
+          "description": "Human-readable order reference like HR-2026-9042",
+          "maxLength": 64
+        },
+        "attendeeName": {
+          "type": "string",
+          "description": "Attendee full name",
+          "maxLength": 100
+        },
+        "attendeeEmail": {
+          "type": "string",
+          "format": "email",
+          "description": "Email where ticket pass was delivered",
+          "maxLength": 100
+        },
+        "buyerPhone": {
+          "type": "string",
+          "description": "Contact phone number",
+          "maxLength": 32
+        },
+        "tierSlug": {
+          "type": "string",
+          "description": "Ticket tier slug (e.g., standard, vip, group)",
+          "maxLength": 64
+        },
+        "tierName": {
+          "type": "string",
+          "description": "Human-readable tier name",
+          "maxLength": 100
+        },
+        "admitsCount": {
+          "type": "number",
+          "description": "Number of guests admitted per ticket"
+        },
+        "priceKes": {
+          "type": "number",
+          "description": "Price in Kenyan Shillings"
+        },
+        "qrHash": {
+          "type": "string",
+          "description": "HMAC signature for offline scanning verification",
+          "maxLength": 128
+        },
+        "status": {
+          "type": "string",
+          "enum": ["valid", "used", "cancelled", "refunded"],
+          "description": "Current status of the ticket pass"
+        },
+        "scannedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Gate admission timestamp if scanned"
+        },
+        "scannedBy": {
+          "type": "string",
+          "description": "Gate operator or terminal that scanned the pass",
+          "maxLength": 100
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Creation timestamp"
+        }
+      },
+      "required": ["ticketNumber", "orderId", "attendeeName", "status"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "Ticket purchase order record with manual M-Pesa verification and approval",
+      "type": "object",
+      "properties": {
+        "orderId": {
+          "type": "string",
+          "description": "Unique order reference code",
+          "maxLength": 64
+        },
+        "orderNumber": {
+          "type": "string",
+          "description": "Human-readable order reference code",
+          "maxLength": 64
+        },
+        "customerName": {
+          "type": "string",
+          "description": "Purchaser full name",
+          "maxLength": 100
+        },
+        "customerEmail": {
+          "type": "string",
+          "format": "email",
+          "description": "Purchaser email for ticket delivery",
+          "maxLength": 100
+        },
+        "customerPhone": {
+          "type": "string",
+          "description": "Customer contact phone or M-Pesa MSISDN",
+          "maxLength": 32
+        },
+        "ticketTypeId": {
+          "type": "string",
+          "description": "Ticket tier ID",
+          "maxLength": 64
+        },
+        "ticketName": {
+          "type": "string",
+          "description": "Human-readable ticket tier name",
+          "maxLength": 100
+        },
+        "admitsCount": {
+          "type": "number",
+          "description": "Number of guests admitted per ticket"
+        },
+        "quantity": {
+          "type": "number",
+          "description": "Number of tickets ordered"
+        },
+        "totalKes": {
+          "type": "number",
+          "description": "Total monetary amount in Kenyan Shillings"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["pending", "pending_approval", "completed", "approved", "rejected", "cancelled", "refunded"],
+          "description": "Payment and order fulfillment status"
+        },
+        "mpesaCode": {
+          "type": "string",
+          "description": "M-Pesa transaction reference code (e.g. TLK89XYZ12)",
+          "maxLength": 32
+        },
+        "mpesaMessage": {
+          "type": "string",
+          "description": "Full pasted M-Pesa confirmation SMS text",
+          "maxLength": 1024
+        },
+        "rejectionReason": {
+          "type": "string",
+          "description": "Reason provided if admin rejects the transaction code",
+          "maxLength": 256
+        },
+        "approvedBy": {
+          "type": "string",
+          "description": "Admin email who verified the code and approved the ticket",
+          "maxLength": 100
+        },
+        "approvedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp when ticket was approved"
+        },
+        "emailSent": {
+          "type": "boolean",
+          "description": "Whether ticket confirmation email was dispatched"
+        },
+        "paymentReference": {
+          "type": "string",
+          "description": "M-Pesa receipt or transaction reference",
+          "maxLength": 64
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Order creation timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Order update timestamp"
+        }
+      },
+      "required": ["orderId", "customerEmail", "totalKes", "status"]
+    }
+  },
+  "firestore": {
+    "/admins/{adminId}": {
+      "schema": { "$ref": "entities/Admin" },
+      "description": "Authorized administrator records and RBAC profiles"
+    },
+    "/users/{userId}": {
+      "schema": { "$ref": "entities/User" },
+      "description": "Authenticated user records and roles"
+    },
+    "/analytics_events/{eventId}": {
+      "schema": { "$ref": "entities/AnalyticsEvent" },
+      "description": "Real-time client telemetry stream dispatched from user-facing pages to admin console"
+    },
+    "/tickets/{ticketId}": {
+      "schema": { "$ref": "entities/Ticket" },
+      "description": "Event ticket passes with gate scanning and validation state"
+    },
+    "/orders/{orderId}": {
+      "schema": { "$ref": "entities/Order" },
+      "description": "Ticket purchase orders and payment ledger"
+    }
+  }
+}

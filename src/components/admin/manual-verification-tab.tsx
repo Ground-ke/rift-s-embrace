@@ -1,0 +1,804 @@
+import { useState, useEffect, useMemo } from "react";
+import {
+  ShieldCheck,
+  CheckCircle2,
+  XCircle,
+  Copy,
+  Check,
+  RefreshCw,
+  Mail,
+  Smartphone,
+  Calendar,
+  AlertCircle,
+  Search,
+  ExternalLink,
+  PlusCircle,
+  Clock,
+  Sparkles,
+  DollarSign,
+  Ticket,
+  User,
+} from "lucide-react";
+import { Button } from "../ui/button";
+import { Input } from "../ui/input";
+import { Badge } from "../ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "../ui/dialog";
+import { Textarea } from "../ui/textarea";
+import { toast } from "sonner";
+import { useAdminAuth } from "../../lib/auth/admin-auth-context";
+import {
+  subscribeToPendingOrders,
+  approveOrderInFirestore,
+  rejectOrderInFirestore,
+  FirestoreOrder,
+} from "../../lib/firebase/firestore-service";
+
+export interface PendingOrderRecord {
+  id: string;
+  orderNumber: string;
+  customerName: string;
+  customerEmail: string;
+  customerPhone: string;
+  ticketName: string;
+  quantity: number;
+  totalKes: number;
+  mpesaCode?: string;
+  mpesaMessage?: string;
+  status: string;
+  createdAt: string;
+  updatedAt?: string;
+  rejectionReason?: string;
+  approvedBy?: string;
+}
+
+export function ManualVerificationTab() {
+  const { user } = useAdminAuth();
+  const [orders, setOrders] = useState<PendingOrderRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [copiedCode, setCopiedCode] = useState<string | null>(null);
+
+  // Approval Modal State
+  const [selectedOrder, setSelectedOrder] = useState<PendingOrderRecord | null>(null);
+  const [isApproving, setIsApproving] = useState(false);
+  const [approvalNotes, setApprovalNotes] = useState("");
+
+  // Rejection Modal State
+  const [rejectingOrder, setRejectingOrder] = useState<PendingOrderRecord | null>(null);
+  const [rejectionReason, setRejectionReason] = useState(
+    "M-Pesa transaction reference not found on merchant statement.",
+  );
+  const [isRejecting, setIsRejecting] = useState(false);
+
+  // Seed State
+  const [isSeeding, setIsSeeding] = useState(false);
+
+  // Fetch pending orders from API
+  const fetchPendingOrders = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/admin/orders/pending");
+      const data = await res.json();
+      if (data.success && Array.isArray(data.orders)) {
+        const mapped: PendingOrderRecord[] = data.orders.map((o: Record<string, unknown>) => ({
+          id: String(o.id || o.orderId || ""),
+          orderNumber: String(o.orderNumber || o.id || ""),
+          customerName: String(o.buyerName || o.customerName || "Customer"),
+          customerEmail: String(o.buyerEmail || o.customerEmail || "No email provided"),
+          customerPhone: String(o.buyerPhone || o.customerPhone || ""),
+          ticketName: String(o.ticketName || "General Admission"),
+          quantity: Number(o.quantity || 1),
+          totalKes: Number(o.totalKes || 0),
+          mpesaCode: o.mpesaCode ? String(o.mpesaCode) : undefined,
+          mpesaMessage: o.mpesaMessage ? String(o.mpesaMessage) : undefined,
+          status: String(o.status || "pending") as PendingOrderRecord["status"],
+          createdAt: String(o.createdAt || new Date().toISOString()),
+          updatedAt: o.updatedAt ? String(o.updatedAt) : undefined,
+          rejectionReason: o.rejectionReason ? String(o.rejectionReason) : undefined,
+          approvedBy: o.approvedBy ? String(o.approvedBy) : undefined,
+        }));
+        setOrders(mapped);
+      }
+    } catch (err) {
+      console.warn("Failed to fetch pending orders from API:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Real-time Firestore subscription + API initial fetch
+  useEffect(() => {
+    fetchPendingOrders();
+
+    // Listen to real-time updates from Firestore
+    const unsubscribe = subscribeToPendingOrders((firestoreOrders) => {
+      if (firestoreOrders && firestoreOrders.length > 0) {
+        setOrders((prev) => {
+          const merged = [...prev];
+          for (const fo of firestoreOrders) {
+            const idx = merged.findIndex((o) => o.id === fo.orderId);
+            const item: PendingOrderRecord = {
+              id: fo.orderId,
+              orderNumber: fo.orderNumber || fo.orderId,
+              customerName: fo.customerName || "Customer",
+              customerEmail: fo.customerEmail || "",
+              customerPhone: fo.customerPhone || "",
+              ticketName: fo.ticketName || "General Admission",
+              quantity: fo.quantity || 1,
+              totalKes: fo.totalKes || 0,
+              mpesaCode: fo.mpesaCode,
+              mpesaMessage: fo.mpesaMessage,
+              status: fo.status,
+              createdAt: fo.createdAt || new Date().toISOString(),
+              updatedAt: fo.updatedAt,
+              rejectionReason: fo.rejectionReason,
+              approvedBy: fo.approvedBy,
+            };
+            if (idx >= 0) {
+              merged[idx] = item;
+            } else {
+              merged.unshift(item);
+            }
+          }
+          return merged;
+        });
+      }
+    });
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, []);
+
+  // Filter orders by search
+  const filteredOrders = useMemo(() => {
+    if (!searchQuery.trim()) return orders;
+    const q = searchQuery.toLowerCase();
+    return orders.filter(
+      (o) =>
+        o.orderNumber.toLowerCase().includes(q) ||
+        o.customerName.toLowerCase().includes(q) ||
+        o.customerEmail.toLowerCase().includes(q) ||
+        o.customerPhone.includes(q) ||
+        (o.mpesaCode && o.mpesaCode.toLowerCase().includes(q)),
+    );
+  }, [orders, searchQuery]);
+
+  // Copy code helper
+  const handleCopyCode = (code: string) => {
+    navigator.clipboard.writeText(code);
+    setCopiedCode(code);
+    toast.success(`Copied code: ${code}`);
+    setTimeout(() => setCopiedCode(null), 2000);
+  };
+
+  // Seed a demo order for quick testing
+  const handleSeedDemoOrder = async () => {
+    setIsSeeding(true);
+    try {
+      const res = await fetch("/api/admin/orders/seed-demo", { method: "POST" });
+      const data = await res.json();
+      if (data.success) {
+        toast.success("Sample order created for verification testing!");
+        await fetchPendingOrders();
+      } else {
+        toast.error("Could not seed demo order: " + data.message);
+      }
+    } catch (err) {
+      toast.error("Error creating demo order");
+    } finally {
+      setIsSeeding(false);
+    }
+  };
+
+  // Execute Approval
+  const handleApproveOrder = async () => {
+    if (!selectedOrder) return;
+    setIsApproving(true);
+
+    try {
+      const res = await fetch("/api/admin/orders/approve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          order_id: selectedOrder.id,
+          admin_email: user?.email || "admin@verve.co.ke",
+          notes: approvalNotes,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        toast.error(data.message || "Failed to approve order.");
+        setIsApproving(false);
+        return;
+      }
+
+      // Also update in Firestore to keep database sync seamless
+      try {
+        await approveOrderInFirestore({
+          orderId: selectedOrder.id,
+          adminEmail: user?.email || "admin@verve.co.ke",
+          tickets: (data.tickets || []).map((t: Record<string, unknown>) => ({
+            ticketNumber: String(t.ticketNumber || ""),
+            orderId: selectedOrder.id,
+            orderNumber: selectedOrder.orderNumber,
+            attendeeName: selectedOrder.customerName,
+            attendeeEmail: selectedOrder.customerEmail,
+            buyerPhone: selectedOrder.customerPhone,
+            tierName: selectedOrder.ticketName,
+            admitsCount: Number(t.admitsCount || 1),
+            priceKes: Number(t.priceKes || selectedOrder.totalKes),
+            qrHash: String(t.qrHash || ""),
+            status: "valid",
+          })),
+        });
+      } catch (fErr) {
+        console.warn("Firestore sync warning on approve:", fErr);
+      }
+
+      toast.success(
+        `Order ${selectedOrder.orderNumber} approved! Ticket email sent to ${selectedOrder.customerEmail}`,
+        { duration: 5000 },
+      );
+
+      // Remove approved order from pending list
+      setOrders((prev) => prev.filter((o) => o.id !== selectedOrder.id));
+      setSelectedOrder(null);
+      setApprovalNotes("");
+    } catch (err) {
+      toast.error("Network error during approval.");
+    } finally {
+      setIsApproving(false);
+    }
+  };
+
+  // Execute Rejection
+  const handleRejectOrder = async () => {
+    if (!rejectingOrder) return;
+    setIsRejecting(true);
+
+    try {
+      const res = await fetch("/api/admin/orders/reject", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          order_id: rejectingOrder.id,
+          reason: rejectionReason,
+          admin_email: user?.email || "admin@verve.co.ke",
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        toast.error(data.message || "Failed to reject order.");
+        setIsRejecting(false);
+        return;
+      }
+
+      // Update in Firestore
+      try {
+        await rejectOrderInFirestore({
+          orderId: rejectingOrder.id,
+          reason: rejectionReason,
+          adminEmail: user?.email || "admin@verve.co.ke",
+        });
+      } catch (fErr) {
+        console.warn("Firestore sync warning on reject:", fErr);
+      }
+
+      toast.info(`Order ${rejectingOrder.orderNumber} marked as rejected.`);
+      setOrders((prev) => prev.filter((o) => o.id !== rejectingOrder.id));
+      setRejectingOrder(null);
+    } catch (err) {
+      toast.error("Network error during rejection.");
+    } finally {
+      setIsRejecting(false);
+    }
+  };
+
+  // Total in queue
+  const totalQueueKes = useMemo(() => {
+    return orders.reduce((sum, o) => sum + (o.totalKes || 0), 0);
+  }, [orders]);
+
+  return (
+    <div className="space-y-6">
+      {/* Top Header */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-border/80 pb-5">
+        <div>
+          <div className="flex items-center gap-2">
+            <h1 className="font-display text-2xl text-bone">M-Pesa Verification Queue</h1>
+            <Badge
+              variant="outline"
+              className="border-amber-500/50 text-amber-400 bg-amber-950/20 font-mono text-xs"
+            >
+              {orders.length} Awaiting Approval
+            </Badge>
+          </div>
+          <p className="text-xs text-muted-foreground font-mono mt-1 max-w-2xl">
+            Confirm customer-submitted M-Pesa transaction reference codes against your Safaricom
+            statement. Approving instantly generates cryptographic QR passes and triggers automated
+            email delivery.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2.5">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleSeedDemoOrder}
+            disabled={isSeeding}
+            className="text-xs border-amber-500/40 text-amber-300 hover:bg-amber-950/30"
+          >
+            {isSeeding ? (
+              <RefreshCw className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+            ) : (
+              <PlusCircle className="w-3.5 h-3.5 mr-1.5" />
+            )}
+            Test Sample Order
+          </Button>
+
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={fetchPendingOrders}
+            disabled={loading}
+            className="text-xs text-bone hover:bg-card border border-border"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${loading ? "animate-spin" : ""}`} />
+            Refresh
+          </Button>
+        </div>
+      </div>
+
+      {/* Metric Cards Summary */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="border border-border bg-card p-4 space-y-1">
+          <span className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground">
+            Pending Orders
+          </span>
+          <div className="font-display text-2xl text-amber-400">
+            {orders.length}{" "}
+            <span className="text-xs font-normal text-muted-foreground">in queue</span>
+          </div>
+          <p className="text-[10px] text-muted-foreground font-mono">Requires admin confirmation</p>
+        </div>
+
+        <div className="border border-border bg-card p-4 space-y-1">
+          <span className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground">
+            Queued Revenue
+          </span>
+          <div className="font-display text-2xl text-bone">
+            KES {totalQueueKes.toLocaleString()}
+          </div>
+          <p className="text-[10px] text-muted-foreground font-mono">Awaiting manual settlement</p>
+        </div>
+
+        <div className="border border-border bg-card p-4 space-y-1">
+          <span className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground">
+            Automated Delivery
+          </span>
+          <div className="flex items-center gap-1.5 text-emerald-400 font-mono text-sm pt-1">
+            <Mail className="w-4 h-4" />
+            <span>Resend / Email Active</span>
+          </div>
+          <p className="text-[10px] text-muted-foreground font-mono">
+            Tickets sent to buyer&apos;s email on approval
+          </p>
+        </div>
+      </div>
+
+      {/* Search & Filter Bar */}
+      <div className="flex items-center gap-3 bg-card border border-border px-3 py-2">
+        <Search className="w-4 h-4 text-muted-foreground" />
+        <Input
+          placeholder="Search by M-Pesa code, order number, customer name, email, or phone..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="bg-transparent border-0 focus-visible:ring-0 text-sm text-bone placeholder:text-muted-foreground/60 h-8"
+        />
+        {searchQuery && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setSearchQuery("")}
+            className="text-xs text-muted-foreground hover:text-bone h-7 px-2"
+          >
+            Clear
+          </Button>
+        )}
+      </div>
+
+      {/* Orders List */}
+      {loading ? (
+        <div className="border border-border bg-card p-12 text-center space-y-3">
+          <RefreshCw className="w-8 h-8 animate-spin mx-auto text-amber-400" />
+          <p className="text-sm font-mono text-muted-foreground">
+            Synchronizing pending verification queue...
+          </p>
+        </div>
+      ) : filteredOrders.length === 0 ? (
+        <div className="border border-border/60 bg-card/50 p-12 text-center space-y-4">
+          <div className="w-12 h-12 rounded-full bg-emerald-950/40 border border-emerald-500/30 grid place-items-center mx-auto text-emerald-400">
+            <CheckCircle2 className="w-6 h-6" />
+          </div>
+          <div className="space-y-1">
+            <h3 className="font-display text-lg text-bone">Queue is all clear!</h3>
+            <p className="text-xs text-muted-foreground font-mono max-w-md mx-auto">
+              No orders are currently waiting for M-Pesa approval. New buyer checkout submissions
+              will appear here in real-time.
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleSeedDemoOrder}
+            disabled={isSeeding}
+            className="text-xs border-amber-500/30 text-amber-300 hover:bg-amber-950/20"
+          >
+            <PlusCircle className="w-3.5 h-3.5 mr-1.5" />
+            Create Sample Order to Test Flow
+          </Button>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {filteredOrders.map((order) => (
+            <div
+              key={order.id}
+              className="border border-border bg-card p-5 transition-all hover:border-border/90 space-y-4"
+            >
+              {/* Order Header */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/60 pb-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded bg-amber-950/40 border border-amber-500/40 grid place-items-center text-amber-400 shrink-0 font-mono font-bold text-xs">
+                    M-PESA
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-sm font-bold text-bone">
+                        {order.orderNumber}
+                      </span>
+                      <Badge
+                        variant="outline"
+                        className="border-amber-500/40 text-amber-400 bg-amber-950/30 text-[10px] font-mono uppercase"
+                      >
+                        Pending Review
+                      </Badge>
+                    </div>
+                    <span className="text-[11px] text-muted-foreground font-mono flex items-center gap-1.5 mt-0.5">
+                      <Clock className="w-3 h-3" />
+                      Submitted {new Date(order.createdAt).toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Amount Due / Paid */}
+                <div className="text-left sm:text-right">
+                  <div className="text-xs text-muted-foreground font-mono">Amount to Verify</div>
+                  <div className="font-display text-2xl text-amber-400">
+                    KES {order.totalKes.toLocaleString()}
+                  </div>
+                </div>
+              </div>
+
+              {/* Middle Section: Customer & M-Pesa Identifier Details */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Customer Details Box */}
+                <div className="bg-background/50 border border-border/80 p-3.5 rounded space-y-2">
+                  <div className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                    <User className="w-3.5 h-3.5 text-lavender" />
+                    Customer &amp; Ticket Info
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div>
+                      <span className="text-muted-foreground block text-[10px]">Name</span>
+                      <strong className="text-bone font-medium">{order.customerName}</strong>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground block text-[10px]">Phone</span>
+                      <strong className="text-bone font-mono">+{order.customerPhone}</strong>
+                    </div>
+                    <div className="col-span-2">
+                      <span className="text-muted-foreground block text-[10px]">
+                        Delivery Email (Ticket Target)
+                      </span>
+                      <div className="flex items-center gap-1.5 text-lavender font-mono">
+                        <Mail className="w-3.5 h-3.5 shrink-0" />
+                        <span className="truncate">{order.customerEmail}</span>
+                      </div>
+                    </div>
+                    <div className="col-span-2 border-t border-border/50 pt-1.5 mt-1 flex justify-between items-center">
+                      <span className="text-muted-foreground">Tier &amp; Quantity:</span>
+                      <span className="text-bone font-mono font-semibold">
+                        {order.quantity}x {order.ticketName}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* M-Pesa Code & Message Box */}
+                <div className="bg-background/50 border border-amber-500/30 p-3.5 rounded space-y-2">
+                  <div className="text-[11px] font-mono uppercase tracking-wider text-amber-400 flex items-center justify-between">
+                    <span className="flex items-center gap-1.5">
+                      <Smartphone className="w-3.5 h-3.5 text-amber-400" />
+                      M-Pesa Identifier
+                    </span>
+                    {order.mpesaCode && (
+                      <span className="text-[10px] text-muted-foreground">Click code to copy</span>
+                    )}
+                  </div>
+
+                  {order.mpesaCode ? (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between bg-amber-950/30 border border-amber-500/40 px-3 py-2 rounded">
+                        <span className="font-mono text-base font-bold tracking-widest text-amber-300">
+                          {order.mpesaCode}
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleCopyCode(order.mpesaCode!)}
+                          className="h-7 px-2 text-xs text-amber-300 hover:text-bone hover:bg-amber-900/40"
+                        >
+                          {copiedCode === order.mpesaCode ? (
+                            <>
+                              <Check className="w-3.5 h-3.5 mr-1 text-emerald-400" />
+                              Copied
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="w-3.5 h-3.5 mr-1" />
+                              Copy
+                            </>
+                          )}
+                        </Button>
+                      </div>
+
+                      {order.mpesaMessage && (
+                        <div className="text-[11px] text-bone-muted bg-card/80 border border-border/60 p-2.5 rounded font-mono leading-relaxed max-h-24 overflow-y-auto">
+                          <span className="text-[10px] uppercase tracking-wider text-muted-foreground block mb-0.5">
+                            Customer Message / SMS:
+                          </span>
+                          &ldquo;{order.mpesaMessage}&rdquo;
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="text-xs text-amber-300/80 font-mono py-2">
+                      No code submitted yet (awaiting customer input)
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex flex-col sm:flex-row items-center justify-end gap-2.5 pt-2 border-t border-border/60">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setRejectingOrder(order)}
+                  className="w-full sm:w-auto text-xs border-destructive/40 text-destructive-foreground hover:bg-destructive/10"
+                >
+                  <XCircle className="w-3.5 h-3.5 mr-1.5 text-destructive" />
+                  Reject Order
+                </Button>
+
+                <Button
+                  variant="event"
+                  size="sm"
+                  onClick={() => setSelectedOrder(order)}
+                  className="w-full sm:w-auto text-xs font-semibold"
+                >
+                  <CheckCircle2 className="w-4 h-4 mr-1.5" />
+                  Approve &amp; Dispatch Ticket Email
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* APPROVAL CONFIRMATION DIALOG */}
+      <Dialog open={!!selectedOrder} onOpenChange={(open) => !open && setSelectedOrder(null)}>
+        <DialogContent className="border-border bg-card sm:max-w-lg text-bone">
+          <DialogHeader>
+            <DialogTitle className="font-display text-xl text-bone flex items-center gap-2">
+              <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+              Confirm Payment &amp; Issue Tickets
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground font-mono">
+              Order {selectedOrder?.orderNumber}
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedOrder && (
+            <div className="space-y-4 py-2">
+              <div className="border border-border/80 bg-background/60 p-3.5 rounded space-y-2 text-xs">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Customer:</span>
+                  <strong className="text-bone">{selectedOrder.customerName}</strong>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Delivery Email:</span>
+                  <strong className="text-lavender font-mono">{selectedOrder.customerEmail}</strong>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Ticket Tier:</span>
+                  <strong className="text-bone font-mono">
+                    {selectedOrder.quantity}x {selectedOrder.ticketName}
+                  </strong>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Amount Paid:</span>
+                  <strong className="text-amber-400 font-mono font-bold text-sm">
+                    KES {selectedOrder.totalKes.toLocaleString()}
+                  </strong>
+                </div>
+                {selectedOrder.mpesaCode && (
+                  <div className="flex justify-between border-t border-border/60 pt-1.5">
+                    <span className="text-muted-foreground">M-Pesa Reference:</span>
+                    <strong className="text-amber-300 font-mono font-bold">
+                      {selectedOrder.mpesaCode}
+                    </strong>
+                  </div>
+                )}
+              </div>
+
+              <div className="border border-emerald-500/40 bg-emerald-950/20 p-3 rounded text-xs text-bone-muted space-y-1">
+                <div className="flex items-center gap-1.5 text-emerald-400 font-semibold font-mono">
+                  <Mail className="w-4 h-4" /> Automated Delivery Dispatch
+                </div>
+                <p>
+                  Upon approval, cryptographic HMAC tickets are minted and automatically emailed to{" "}
+                  <strong className="text-bone font-mono">{selectedOrder.customerEmail}</strong>.
+                  The order status in Firestore will transition to{" "}
+                  <span className="text-emerald-300 font-mono">approved</span>.
+                </p>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-mono text-muted-foreground">
+                  Verification Notes (Optional audit log):
+                </label>
+                <Input
+                  placeholder="e.g., Verified against statement ref #..."
+                  value={approvalNotes}
+                  onChange={(e) => setApprovalNotes(e.target.value)}
+                  className="bg-background border-border text-xs text-bone"
+                />
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setSelectedOrder(null)}
+              disabled={isApproving}
+              className="text-muted-foreground hover:text-bone text-xs"
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="event"
+              size="sm"
+              onClick={handleApproveOrder}
+              disabled={isApproving}
+              className="text-xs"
+            >
+              {isApproving ? (
+                <>
+                  <RefreshCw className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                  Approving &amp; Sending Email...
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="w-4 h-4 mr-1.5" />
+                  Confirm Approval &amp; Send Tickets
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* REJECTION REASON DIALOG */}
+      <Dialog open={!!rejectingOrder} onOpenChange={(open) => !open && setRejectingOrder(null)}>
+        <DialogContent className="border-border bg-card sm:max-w-md text-bone">
+          <DialogHeader>
+            <DialogTitle className="font-display text-xl text-destructive-foreground flex items-center gap-2">
+              <XCircle className="w-5 h-5 text-destructive" />
+              Reject Order
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground font-mono">
+              Order {rejectingOrder?.orderNumber}
+            </DialogDescription>
+          </DialogHeader>
+
+          {rejectingOrder && (
+            <div className="space-y-4 py-2">
+              <p className="text-xs text-bone-muted leading-relaxed">
+                Provide a reason for rejecting this order. The order will be marked as rejected in
+                the central ledger.
+              </p>
+
+              <div className="space-y-2">
+                <label className="text-[11px] font-mono text-muted-foreground">
+                  Select or enter reason:
+                </label>
+                <div className="space-y-1.5">
+                  {[
+                    "M-Pesa transaction reference not found on merchant statement.",
+                    "Payment amount does not match order total.",
+                    "Duplicate transaction code already claimed.",
+                    "Transaction reversed or cancelled on Safaricom.",
+                  ].map((r, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => setRejectionReason(r)}
+                      className={`w-full text-left text-xs p-2 rounded border transition-colors ${
+                        rejectionReason === r
+                          ? "bg-destructive/10 border-destructive/50 text-bone"
+                          : "bg-background/50 border-border text-muted-foreground hover:bg-background hover:text-bone"
+                      }`}
+                    >
+                      {r}
+                    </button>
+                  ))}
+                </div>
+
+                <Textarea
+                  value={rejectionReason}
+                  onChange={(e) => setRejectionReason(e.target.value)}
+                  placeholder="Custom rejection reason..."
+                  className="bg-background border-border text-xs text-bone h-20 mt-2"
+                />
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setRejectingOrder(null)}
+              disabled={isRejecting}
+              className="text-muted-foreground hover:text-bone text-xs"
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={handleRejectOrder}
+              disabled={isRejecting}
+              className="text-xs"
+            >
+              {isRejecting ? (
+                <>
+                  <RefreshCw className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                  Rejecting...
+                </>
+              ) : (
+                "Confirm Rejection"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}

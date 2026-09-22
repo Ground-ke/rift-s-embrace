@@ -14,8 +14,7 @@ export type PublicTicket = {
 };
 
 export type TicketLookupResult =
-  | { status: "ok"; ticket: PublicTicket }
-  | { status: "invalid"; message: string };
+  { status: "ok"; ticket: PublicTicket } | { status: "invalid"; message: string };
 
 /**
  * Public ticket lookup. The signature in the QR payload is what proves the
@@ -39,7 +38,9 @@ export const getTicketByCode = createServerFn({ method: "GET" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: row } = await supabaseAdmin
       .from("tickets")
-      .select("ticket_code, qr_hash, event_name, event_date, venue, tier, holder_name, is_used, used_at")
+      .select(
+        "ticket_code, qr_hash, event_name, event_date, venue, tier, holder_name, is_used, used_at",
+      )
       .eq("ticket_code", data.code)
       .maybeSingle();
 

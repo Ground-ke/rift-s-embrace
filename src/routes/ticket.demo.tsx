@@ -88,7 +88,7 @@ function TicketDemo() {
                   </div>
                 </dl>
                 <div className="mt-8 flex items-center gap-2 border-t border-border pt-5 text-sm text-muted-foreground">
-                  <Clock3 className="size-4" />4 PM till late · The Lawns, Nakuru
+                  <Clock3 className="size-4" />4 PM till late · Top Cliff Lounge, Nakuru
                 </div>
               </div>
               <QRPlaceholder />

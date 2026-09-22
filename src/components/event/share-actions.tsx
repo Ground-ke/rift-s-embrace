@@ -2,7 +2,8 @@ import { Check, Copy, Facebook, MessageCircle, Share2 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 
-const text = "I’m going to Hauntings of the Rift! 31 October • The Lawns, Nakuru. Are you coming?";
+const text =
+  "I’m going to Hauntings of the Rift! 31 October • Top Cliff Lounge, Nakuru. Are you coming?";
 
 export function ShareActions() {
   const [copied, setCopied] = useState(false);

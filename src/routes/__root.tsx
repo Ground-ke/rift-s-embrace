@@ -3,14 +3,18 @@ import {
   Outlet,
   createRootRouteWithContext,
   useRouter,
+  useRouterState,
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
 import { useEffect, type ReactNode } from "react";
+import { Toaster } from "sonner";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { VerveErrorState } from "../components/brand/verve-logo";
+import { AdminAuthProvider } from "../lib/auth/admin-auth-context";
+import { analytics } from "../lib/analytics";
 
 function NotFoundComponent() {
   return (
@@ -104,13 +108,21 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  const location = useRouterState({ select: (s) => s.location.pathname });
+
+  useEffect(() => {
+    analytics.trackPageView(location);
+  }, [location]);
 
   return (
     <QueryClientProvider client={queryClient}>
-      <main>
-        {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-        <Outlet />
-      </main>
+      <AdminAuthProvider>
+        <main>
+          {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+          <Outlet />
+        </main>
+        <Toaster richColors position="top-right" theme="dark" />
+      </AdminAuthProvider>
     </QueryClientProvider>
   );
 }

@@ -1,0 +1,148 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Default deny all unknown routes
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isBootstrappedAdmin() {
+      return isSignedIn() && request.auth.token.email == 'erastus.n.gathungu@gmail.com';
+    }
+
+    function isAdmin() {
+      return isBootstrappedAdmin() || (isSignedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid)));
+    }
+
+    function isValidAnalyticsEvent(data) {
+      return data.keys().hasAll(['eventName', 'pageUrl', 'sessionId', 'timestamp'])
+        && data.keys().hasOnly(['eventName', 'pageUrl', 'path', 'sessionId', 'deviceType', 'source', 'timestamp', 'metadataJson'])
+        && data.eventName is string && data.eventName.size() > 0 && data.eventName.size() <= 64
+        && data.pageUrl is string && data.pageUrl.size() > 0 && data.pageUrl.size() <= 256
+        && data.sessionId is string && data.sessionId.size() > 0 && data.sessionId.size() <= 64
+        && data.timestamp is string && data.timestamp.size() > 0 && data.timestamp.size() <= 64
+        && (!('path' in data) || (data.path is string && data.path.size() <= 128))
+        && (!('deviceType' in data) || (data.deviceType is string && data.deviceType.size() <= 32))
+        && (!('source' in data) || (data.source is string && data.source.size() <= 128))
+        && (!('metadataJson' in data) || (data.metadataJson is string && data.metadataJson.size() <= 2048));
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email', 'role'])
+        && data.keys().hasOnly(['uid', 'email', 'displayName', 'role', 'createdAt'])
+        && data.uid is string && data.uid.size() > 0 && data.uid.size() <= 128
+        && data.email is string && data.email.size() > 0 && data.email.size() <= 100
+        && data.role in ['admin', 'scanner', 'customer']
+        && (!('displayName' in data) || (data.displayName is string && data.displayName.size() <= 100))
+        && (!('createdAt' in data) || (data.createdAt is string && data.createdAt.size() <= 64));
+    }
+
+    function isValidAdmin(data) {
+      return data.keys().hasAll(['email', 'role'])
+        && data.keys().hasOnly(['email', 'name', 'role', 'createdAt'])
+        && data.email is string && data.email.size() > 0 && data.email.size() <= 100
+        && data.role in ['admin', 'superadmin', 'scanner']
+        && (!('name' in data) || (data.name is string && data.name.size() <= 100))
+        && (!('createdAt' in data) || (data.createdAt is string && data.createdAt.size() <= 64));
+    }
+
+    function isValidTicket(data) {
+      return data.keys().hasAll(['ticketNumber', 'orderId', 'attendeeName', 'status'])
+        && data.keys().hasOnly(['ticketNumber', 'orderId', 'orderNumber', 'attendeeName', 'attendeeEmail', 'buyerPhone', 'tierSlug', 'tierName', 'admitsCount', 'priceKes', 'qrHash', 'status', 'scannedAt', 'scannedBy', 'createdAt'])
+        && data.ticketNumber is string && data.ticketNumber.size() > 0 && data.ticketNumber.size() <= 64
+        && data.orderId is string && data.orderId.size() > 0 && data.orderId.size() <= 64
+        && data.attendeeName is string && data.attendeeName.size() > 0 && data.attendeeName.size() <= 100
+        && data.status in ['valid', 'used', 'cancelled', 'refunded']
+        && (!('orderNumber' in data) || (data.orderNumber is string && data.orderNumber.size() <= 64))
+        && (!('attendeeEmail' in data) || (data.attendeeEmail is string && data.attendeeEmail.size() <= 100))
+        && (!('buyerPhone' in data) || (data.buyerPhone is string && data.buyerPhone.size() <= 32))
+        && (!('tierSlug' in data) || (data.tierSlug is string && data.tierSlug.size() <= 64))
+        && (!('tierName' in data) || (data.tierName is string && data.tierName.size() <= 100))
+        && (!('admitsCount' in data) || (data.admitsCount is number && data.admitsCount >= 1))
+        && (!('priceKes' in data) || (data.priceKes is number && data.priceKes >= 0))
+        && (!('qrHash' in data) || (data.qrHash is string && data.qrHash.size() <= 128))
+        && (!('scannedAt' in data) || (data.scannedAt is string && data.scannedAt.size() <= 64))
+        && (!('scannedBy' in data) || (data.scannedBy is string && data.scannedBy.size() <= 100))
+        && (!('createdAt' in data) || (data.createdAt is string && data.createdAt.size() <= 64));
+    }
+
+    function isValidOrder(data) {
+      return data.keys().hasAll(['orderId', 'customerEmail', 'totalKes', 'status'])
+        && data.keys().hasOnly(['orderId', 'orderNumber', 'customerName', 'customerEmail', 'customerPhone', 'ticketTypeId', 'ticketName', 'admitsCount', 'quantity', 'totalKes', 'status', 'mpesaCode', 'mpesaMessage', 'rejectionReason', 'approvedBy', 'approvedAt', 'emailSent', 'paymentReference', 'createdAt', 'updatedAt'])
+        && data.orderId is string && data.orderId.size() > 0 && data.orderId.size() <= 64
+        && data.customerEmail is string && data.customerEmail.size() > 0 && data.customerEmail.size() <= 100
+        && data.totalKes is number && data.totalKes >= 0
+        && data.status in ['pending', 'pending_approval', 'completed', 'approved', 'rejected', 'cancelled', 'refunded']
+        && (!('orderNumber' in data) || (data.orderNumber is string && data.orderNumber.size() <= 64))
+        && (!('customerName' in data) || (data.customerName is string && data.customerName.size() <= 100))
+        && (!('customerPhone' in data) || (data.customerPhone is string && data.customerPhone.size() <= 32))
+        && (!('ticketTypeId' in data) || (data.ticketTypeId is string && data.ticketTypeId.size() <= 64))
+        && (!('ticketName' in data) || (data.ticketName is string && data.ticketName.size() <= 100))
+        && (!('admitsCount' in data) || (data.admitsCount is number && data.admitsCount >= 1))
+        && (!('quantity' in data) || (data.quantity is number && data.quantity >= 1))
+        && (!('mpesaCode' in data) || (data.mpesaCode is string && data.mpesaCode.size() <= 32))
+        && (!('mpesaMessage' in data) || (data.mpesaMessage is string && data.mpesaMessage.size() <= 1024))
+        && (!('rejectionReason' in data) || (data.rejectionReason is string && data.rejectionReason.size() <= 256))
+        && (!('approvedBy' in data) || (data.approvedBy is string && data.approvedBy.size() <= 100))
+        && (!('approvedAt' in data) || (data.approvedAt is string && data.approvedAt.size() <= 64))
+        && (!('emailSent' in data) || data.emailSent is bool)
+        && (!('paymentReference' in data) || (data.paymentReference is string && data.paymentReference.size() <= 64))
+        && (!('createdAt' in data) || (data.createdAt is string && data.createdAt.size() <= 64))
+        && (!('updatedAt' in data) || (data.updatedAt is string && data.updatedAt.size() <= 64));
+    }
+
+    // 1. Administrators Collection
+    match /admins/{adminId} {
+      allow get: if (isAdmin() || (isSignedIn() && request.auth.uid == adminId)) && isValidId(adminId);
+      allow list: if isAdmin();
+      allow create, update: if (isAdmin() || (isSignedIn() && request.auth.uid == adminId)) && isValidId(adminId) && isValidAdmin(request.resource.data);
+      allow delete: if isAdmin() && isValidId(adminId);
+    }
+
+    // 2. Users Collection
+    match /users/{userId} {
+      allow get: if isValidId(userId) && (isAdmin() || (isSignedIn() && request.auth.uid == userId));
+      allow list: if isAdmin();
+      allow create: if isValidId(userId) && isSignedIn() && request.auth.uid == userId
+        && isValidUser(request.resource.data)
+        && (request.resource.data.role != 'admin' || isBootstrappedAdmin());
+      allow update: if isValidId(userId) && isSignedIn()
+        && (isAdmin() || (request.auth.uid == userId && isValidUser(request.resource.data) && request.resource.data.role == resource.data.role));
+      allow delete: if isAdmin() && isValidId(userId);
+    }
+
+    // 3. Analytics Events Collection
+    match /analytics_events/{eventId} {
+      allow get: if isAdmin() && isValidId(eventId);
+      allow list: if isAdmin();
+      allow create: if isValidId(eventId) && isValidAnalyticsEvent(request.resource.data);
+      allow update, delete: if isAdmin() && isValidId(eventId);
+    }
+
+    // 4. Tickets Collection
+    match /tickets/{ticketId} {
+      allow get: if isValidId(ticketId);
+      allow list: if isAdmin();
+      allow create, update: if isAdmin() && isValidId(ticketId) && isValidTicket(request.resource.data);
+      allow delete: if isAdmin() && isValidId(ticketId);
+    }
+
+    // 5. Orders Collection
+    match /orders/{orderId} {
+      allow get: if isValidId(orderId);
+      allow list: if isAdmin();
+      allow create: if isValidId(orderId) && isValidOrder(request.resource.data) && request.resource.data.status in ['pending', 'pending_approval'];
+      allow update: if isValidId(orderId) && (isAdmin() || (isValidOrder(request.resource.data) && request.resource.data.status == 'pending_approval'));
+      allow delete: if isAdmin() && isValidId(orderId);
+    }
+  }
+}

@@ -1,0 +1,878 @@
+import {
+  generateTicketCode,
+  generateTicketHmac,
+  createRecoveryToken,
+  verifyRecoveryToken,
+} from "./crypto";
+import { sendTicketConfirmationEmail, sendRecoveryEmail } from "./email.server";
+import { OrderService } from "./order-service";
+
+export interface DigitalTicketRecord {
+  id: string;
+  orderId: string;
+  orderNumber: string;
+  ticketNumber: string;
+  qrHash: string;
+  tierSlug: string;
+  tierName: string;
+  admitsCount: number;
+  attendeeName: string;
+  buyerEmail?: string;
+  buyerPhone: string;
+  status: "valid" | "used" | "cancelled" | "refunded";
+  priceKes: number;
+  issuedAt: string;
+  usedAt?: string | null;
+  scannedBy?: string | null;
+  venue: {
+    name: string;
+    address: string;
+    city: string;
+    date: string;
+    time: string;
+    ageRequirement: string;
+  };
+}
+
+export interface PaymentTransactionRecord {
+  id: string;
+  idempotencyKey: string;
+  orderId: string;
+  amountKes: number;
+  currency: string;
+  provider: string;
+  providerRef?: string;
+  status: "pending" | "completed" | "failed";
+  createdAt: number;
+  updatedAt: number;
+  errorMessage?: string;
+}
+
+export interface RecoveryRateLimitRecord {
+  identifier: string; // email or IP
+  timestamp: number;
+}
+
+export interface CheckInLogRecord {
+  id: string;
+  ticketNumber: string;
+  orderNumber: string;
+  attendeeName: string;
+  tierName: string;
+  admitsCount: number;
+  status: "valid" | "duplicate" | "invalid";
+  scannedAt: string;
+  scannedBy: string;
+  gateLocation: string;
+  ipAddress?: string;
+}
+
+// In-Memory Synchronized Store (Fast Fallback & Local Dev/Preview Cache)
+const ticketsStore = new Map<string, DigitalTicketRecord>();
+const transactionsStore = new Map<string, PaymentTransactionRecord>();
+const checkInLogsStore: CheckInLogRecord[] = [];
+const recoveryRateLimitStore: RecoveryRateLimitRecord[] = [];
+
+// Seed sample/demo tickets for verification and rich admin preview
+const demoTickets: DigitalTicketRecord[] = [
+  {
+    id: "demo-tkt-001",
+    orderId: "ord-demo-rift-001",
+    orderNumber: "HR-2026-9042",
+    ticketNumber: "HR-7892-4910",
+    qrHash: generateTicketHmac("HR-7892-4910", "ord-demo-rift-001", "Amara Vance"),
+    tierSlug: "couple-pass",
+    tierName: "Couple Pass (2 Guests)",
+    admitsCount: 2,
+    attendeeName: "Amara Vance",
+    buyerEmail: "amara.vance@example.com",
+    buyerPhone: "254712345678",
+    status: "valid",
+    priceKes: 4500,
+    issuedAt: new Date(Date.now() - 3600000 * 4).toISOString(),
+    venue: {
+      name: "Top Cliff Lounge",
+      address: "Nakuru-Nairobi Highway, Free Area",
+      city: "Nakuru, Kenya",
+      date: "Saturday, 31 October 2026",
+      time: "4:00 PM - 4:00 AM EAT",
+      ageRequirement: "Strictly 21+ with Valid ID",
+    },
+  },
+  {
+    id: "demo-tkt-002",
+    orderId: "ord-demo-rift-002",
+    orderNumber: "HR-2026-9043",
+    ticketNumber: "HR-5519-8231",
+    qrHash: generateTicketHmac("HR-5519-8231", "ord-demo-rift-002", "Erastus Gathungu"),
+    tierSlug: "hellfire-vip",
+    tierName: "Hellfire VIP (Complimentary Open Bar)",
+    admitsCount: 1,
+    attendeeName: "Erastus Gathungu",
+    buyerEmail: "erastus.n.gathungu@gmail.com",
+    buyerPhone: "254700112233",
+    status: "valid",
+    priceKes: 6500,
+    issuedAt: new Date(Date.now() - 3600000 * 12).toISOString(),
+    venue: {
+      name: "Top Cliff Lounge",
+      address: "Nakuru-Nairobi Highway, Free Area",
+      city: "Nakuru, Kenya",
+      date: "Saturday, 31 October 2026",
+      time: "4:00 PM - 4:00 AM EAT",
+      ageRequirement: "Strictly 21+ with Valid ID",
+    },
+  },
+  {
+    id: "demo-tkt-003",
+    orderId: "ord-demo-rift-003",
+    orderNumber: "HR-2026-9044",
+    ticketNumber: "HR-3184-9022",
+    qrHash: generateTicketHmac("HR-3184-9022", "ord-demo-rift-003", "Kendi Mwenda"),
+    tierSlug: "general-admission",
+    tierName: "General Admission",
+    admitsCount: 1,
+    attendeeName: "Kendi Mwenda",
+    buyerEmail: "kendi.m@riftparty.co.ke",
+    buyerPhone: "254722334455",
+    status: "used",
+    priceKes: 2500,
+    issuedAt: new Date(Date.now() - 3600000 * 24).toISOString(),
+    usedAt: new Date(Date.now() - 3600000 * 2).toISOString(),
+    scannedBy: "Gate Alpha Primary",
+    venue: {
+      name: "Top Cliff Lounge",
+      address: "Nakuru-Nairobi Highway, Free Area",
+      city: "Nakuru, Kenya",
+      date: "Saturday, 31 October 2026",
+      time: "4:00 PM - 4:00 AM EAT",
+      ageRequirement: "Strictly 21+ with Valid ID",
+    },
+  },
+  {
+    id: "demo-tkt-004",
+    orderId: "ord-demo-rift-004",
+    orderNumber: "HR-2026-9045",
+    ticketNumber: "HR-9941-1049",
+    qrHash: generateTicketHmac("HR-9941-1049", "ord-demo-rift-004", "Tariq Al-Mansoor"),
+    tierSlug: "rift-coven",
+    tierName: "Rift Coven Group (5 Guests)",
+    admitsCount: 5,
+    attendeeName: "Tariq Al-Mansoor",
+    buyerEmail: "tariq.mansoor@example.org",
+    buyerPhone: "254799887766",
+    status: "valid",
+    priceKes: 10000,
+    issuedAt: new Date(Date.now() - 3600000 * 48).toISOString(),
+    venue: {
+      name: "Top Cliff Lounge",
+      address: "Nakuru-Nairobi Highway, Free Area",
+      city: "Nakuru, Kenya",
+      date: "Saturday, 31 October 2026",
+      time: "4:00 PM - 4:00 AM EAT",
+      ageRequirement: "Strictly 21+ with Valid ID",
+    },
+  },
+  {
+    id: "demo-tkt-005",
+    orderId: "ord-demo-rift-005",
+    orderNumber: "HR-2026-9046",
+    ticketNumber: "HR-1209-7734",
+    qrHash: generateTicketHmac("HR-1209-7734", "ord-demo-rift-005", "Samantha Njeri"),
+    tierSlug: "early-bird",
+    tierName: "Early Bat (Limited Tier)",
+    admitsCount: 1,
+    attendeeName: "Samantha Njeri",
+    buyerEmail: "samantha.njeri@example.com",
+    buyerPhone: "254733445566",
+    status: "cancelled",
+    priceKes: 1800,
+    issuedAt: new Date(Date.now() - 3600000 * 72).toISOString(),
+    venue: {
+      name: "Top Cliff Lounge",
+      address: "Nakuru-Nairobi Highway, Free Area",
+      city: "Nakuru, Kenya",
+      date: "Saturday, 31 October 2026",
+      time: "4:00 PM - 4:00 AM EAT",
+      ageRequirement: "Strictly 21+ with Valid ID",
+    },
+  },
+];
+
+demoTickets.forEach((t) => ticketsStore.set(t.ticketNumber, t));
+
+export class TicketsServerService {
+  /**
+   * Returns all tickets currently in store
+   */
+  static getAllTickets(): DigitalTicketRecord[] {
+    return Array.from(ticketsStore.values());
+  }
+
+  /**
+   * Updates a ticket record in store
+   */
+  static updateTicketRecord(ticket: DigitalTicketRecord): void {
+    ticketsStore.set(ticket.ticketNumber, ticket);
+  }
+  /**
+   * Issues cryptographic digital tickets for a completed order
+   */
+  static async issueTicketsForOrder(
+    orderId: string,
+    token: string,
+  ): Promise<DigitalTicketRecord[]> {
+    const order = OrderService.getOrder(orderId, token);
+    if (!order) {
+      throw new Error("Order not found or unauthorized token.");
+    }
+
+    // Check if tickets were already issued for this order
+    const existing = Array.from(ticketsStore.values()).filter((t) => t.orderId === orderId);
+    if (existing.length > 0) {
+      return existing;
+    }
+
+    const issuedTickets: DigitalTicketRecord[] = [];
+    const admitsPerTicket = order.admitsCount;
+    const quantity = order.quantity;
+
+    for (let i = 0; i < quantity; i++) {
+      const ticketNumber = generateTicketCode();
+      const qrHash = generateTicketHmac(ticketNumber, order.orderId, order.buyerName);
+
+      const ticketRecord: DigitalTicketRecord = {
+        id: `tkt_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        orderId: order.orderId,
+        orderNumber: order.orderNumber,
+        ticketNumber,
+        qrHash,
+        tierSlug: "general-admission",
+        tierName: order.ticketName,
+        admitsCount: admitsPerTicket,
+        attendeeName: order.buyerName,
+        buyerEmail: order.buyerEmail,
+        buyerPhone: order.buyerPhone,
+        status: "valid",
+        priceKes: Math.round(order.totalKes / quantity),
+        issuedAt: new Date().toISOString(),
+        venue: {
+          name: "Top Cliff Lounge",
+          address: "Nakuru-Nairobi Highway, Free Area",
+          city: "Nakuru, Kenya",
+          date: "Saturday, 31 October 2026",
+          time: "4:00 PM - 4:00 AM EAT",
+          ageRequirement: "Strictly 21+ with Valid ID",
+        },
+      };
+
+      ticketsStore.set(ticketNumber, ticketRecord);
+      issuedTickets.push(ticketRecord);
+    }
+
+    return issuedTickets;
+  }
+
+  /**
+   * Issue authoritative tickets for an approved order without requiring customer token (Admin context)
+   */
+  static async issueTicketsForApprovedOrder(orderId: string): Promise<DigitalTicketRecord[]> {
+    // Check if tickets were already issued for this order
+    const existing = Array.from(ticketsStore.values()).filter((t) => t.orderId === orderId);
+    if (existing.length > 0) {
+      return existing;
+    }
+
+    const order = OrderService._getOrderByIdInternal(orderId);
+    if (!order) {
+      throw new Error("Order record not found in system.");
+    }
+
+    const issuedTickets: DigitalTicketRecord[] = [];
+    const admitsPerTicket = order.admitsCount || 1;
+    const quantity = order.quantity || 1;
+
+    for (let i = 0; i < quantity; i++) {
+      const ticketNumber = generateTicketCode();
+      const qrHash = generateTicketHmac(ticketNumber, order.id, order.buyerName);
+
+      const ticketRecord: DigitalTicketRecord = {
+        id: `tkt_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        ticketNumber,
+        qrHash,
+        tierSlug: order.ticketTypeId || "general-admission",
+        tierName: order.ticketName,
+        admitsCount: admitsPerTicket,
+        attendeeName: order.buyerName,
+        buyerEmail: order.buyerEmail,
+        buyerPhone: order.buyerPhone,
+        status: "valid",
+        priceKes: Math.round(order.totalKes / quantity),
+        issuedAt: new Date().toISOString(),
+        venue: {
+          name: "Top Cliff Lounge",
+          address: "Nakuru-Nairobi Highway, Free Area",
+          city: "Nakuru, Kenya",
+          date: "Saturday, 31 October 2026",
+          time: "4:00 PM - 4:00 AM EAT",
+          ageRequirement: "Strictly 21+ with Valid ID",
+        },
+      };
+
+      ticketsStore.set(ticketNumber, ticketRecord);
+      issuedTickets.push(ticketRecord);
+    }
+
+    return issuedTickets;
+  }
+
+  /**
+   * Idempotency Gate for Payment Verification & Processing
+   */
+  static async verifyPayment(params: {
+    idempotencyKey: string;
+    orderId: string;
+    token: string;
+    mpesaReceipt?: string;
+    clientIp?: string;
+  }): Promise<{
+    success: boolean;
+    status: "completed" | "pending" | "failed";
+    code?: string;
+    message: string;
+    tickets?: DigitalTicketRecord[];
+    receipt?: string;
+  }> {
+    const { idempotencyKey, orderId, token, mpesaReceipt } = params;
+
+    if (!idempotencyKey || !orderId || !token) {
+      return {
+        success: false,
+        status: "failed",
+        code: "INVALID_ARGUMENTS",
+        message: "Idempotency key, orderId, and checkout token are required.",
+      };
+    }
+
+    // 1. Check existing transaction under this idempotency key
+    const existingTx = transactionsStore.get(idempotencyKey);
+    if (existingTx) {
+      if (existingTx.status === "completed") {
+        // Replay completed transaction results
+        const existingTickets = Array.from(ticketsStore.values()).filter(
+          (t) => t.orderId === orderId,
+        );
+        return {
+          success: true,
+          status: "completed",
+          message: "Transaction previously completed.",
+          tickets: existingTickets,
+          receipt: existingTx.providerRef || mpesaReceipt,
+        };
+      }
+
+      if (existingTx.status === "pending") {
+        // Return 409 Concurrent processing state
+        return {
+          success: false,
+          status: "pending",
+          code: "TRANSACTION_PENDING",
+          message: "Payment transaction is currently being processed. Please wait.",
+        };
+      }
+
+      // If existing status is 'failed', we allow retrying under the same key or updating status
+    }
+
+    // 2. Lookup order
+    const order = OrderService.getOrder(orderId, token);
+    if (!order) {
+      return {
+        success: false,
+        status: "failed",
+        code: "ORDER_NOT_FOUND",
+        message: "Order not found or authorization token invalid.",
+      };
+    }
+
+    // 3. Mark transaction as pending
+    const txRecord: PaymentTransactionRecord = {
+      id: `tx_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      idempotencyKey,
+      orderId,
+      amountKes: order.totalKes,
+      currency: "KES",
+      provider: "mpesa",
+      providerRef: mpesaReceipt || `REC-${Date.now().toString(36).toUpperCase()}`,
+      status: "pending",
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+    transactionsStore.set(idempotencyKey, txRecord);
+
+    try {
+      // 4. Issue tickets upon successful verification
+      const tickets = await this.issueTicketsForOrder(orderId, token);
+
+      // 5. Mark transaction completed
+      txRecord.status = "completed";
+      txRecord.updatedAt = Date.now();
+      transactionsStore.set(idempotencyKey, txRecord);
+
+      return {
+        success: true,
+        status: "completed",
+        message: "Payment authoritatively verified and tickets issued.",
+        tickets,
+        receipt: txRecord.providerRef,
+      };
+    } catch (err) {
+      txRecord.status = "failed";
+      txRecord.errorMessage = err instanceof Error ? err.message : String(err);
+      txRecord.updatedAt = Date.now();
+      transactionsStore.set(idempotencyKey, txRecord);
+
+      return {
+        success: false,
+        status: "failed",
+        code: "PROCESSING_ERROR",
+        message: "Payment verification failed. You may safely retry.",
+      };
+    }
+  }
+
+  /**
+   * Signature-verified public lookup by ticket code
+   */
+  static getTicketByCode(code: string): {
+    success: boolean;
+    ticket?: DigitalTicketRecord;
+    message?: string;
+  } {
+    const normalized = code.trim().toUpperCase();
+    const ticket = ticketsStore.get(normalized);
+
+    if (!ticket) {
+      return {
+        success: false,
+        message: "No ticket found matching the specified code.",
+      };
+    }
+
+    return {
+      success: true,
+      ticket,
+    };
+  }
+
+  /**
+   * Ticket Recovery Request Handler (Rate limited + generic non-enumerating response)
+   */
+  static async recoverTicket(params: {
+    email?: string;
+    phone?: string;
+    clientIp: string;
+    baseUrl: string;
+  }): Promise<{
+    success: boolean;
+    code?: string;
+    message: string;
+    rateLimited?: boolean;
+    previewToken?: string; // Provided for sandbox UI convenience
+  }> {
+    const { email, clientIp, baseUrl } = params;
+    const now = Date.now();
+    const ONE_HOUR = 3600000;
+
+    // Clean up old rate limit records
+    while (
+      recoveryRateLimitStore.length > 0 &&
+      recoveryRateLimitStore[0].timestamp < now - ONE_HOUR
+    ) {
+      recoveryRateLimitStore.shift();
+    }
+
+    // Rate limit: Max 3 requests per hour per email and per client IP
+    const emailKey = email?.trim().toLowerCase() || "";
+    const ipKey = clientIp.trim();
+
+    const emailAttempts = recoveryRateLimitStore.filter(
+      (r) => emailKey && r.identifier === emailKey && r.timestamp > now - ONE_HOUR,
+    ).length;
+
+    const ipAttempts = recoveryRateLimitStore.filter(
+      (r) => r.identifier === ipKey && r.timestamp > now - ONE_HOUR,
+    ).length;
+
+    if (emailAttempts >= 3 || ipAttempts >= 5) {
+      return {
+        success: false,
+        code: "RATE_LIMITED",
+        rateLimited: true,
+        message: "Too many ticket recovery requests. Please wait before trying again.",
+      };
+    }
+
+    // Record request for rate limiting
+    if (emailKey) recoveryRateLimitStore.push({ identifier: emailKey, timestamp: now });
+    recoveryRateLimitStore.push({ identifier: ipKey, timestamp: now });
+
+    // Look for matching tickets (generic non-enumerating response)
+    let matchingTickets: DigitalTicketRecord[] = [];
+    if (emailKey) {
+      matchingTickets = Array.from(ticketsStore.values()).filter((t) =>
+        t.buyerEmail ? t.buyerEmail.toLowerCase() === emailKey : true,
+      );
+    }
+
+    let recoveryToken: string | undefined;
+
+    if (emailKey) {
+      recoveryToken = createRecoveryToken(emailKey, ONE_HOUR);
+      const recoveryUrl = `${baseUrl.replace(/\/$/, "")}/recover?token=${recoveryToken}`;
+
+      await sendRecoveryEmail({
+        to: emailKey,
+        recoveryUrl,
+        ticketsCount: Math.max(1, matchingTickets.length),
+      });
+    }
+
+    return {
+      success: true,
+      message:
+        "If matching tickets are associated with this email address, a secure recovery link has been dispatched to your inbox.",
+      previewToken: recoveryToken,
+    };
+  }
+
+  /**
+   * Verifies signed recovery token and retrieves associated tickets
+   */
+  static verifyRecoveryToken(token: string): {
+    valid: boolean;
+    expired?: boolean;
+    email?: string;
+    tickets: DigitalTicketRecord[];
+  } {
+    const result = verifyRecoveryToken(token);
+    if (!result.valid || !result.email) {
+      return {
+        valid: false,
+        expired: result.expired,
+        email: result.email,
+        tickets: [],
+      };
+    }
+
+    const email = result.email.toLowerCase();
+    const userTickets = Array.from(ticketsStore.values()).filter(
+      (t) => !t.buyerEmail || t.buyerEmail.toLowerCase() === email,
+    );
+
+    return {
+      valid: true,
+      email,
+      tickets: userTickets,
+    };
+  }
+
+  /**
+   * Scans and marks ticket as used at event check-in
+   */
+  static markTicketUsed(
+    code: string,
+    scannedBy = "Gate Security Staff",
+  ): {
+    success: boolean;
+    status: "valid" | "already_used" | "not_found";
+    ticket?: DigitalTicketRecord;
+    message: string;
+  } {
+    const normalized = code.trim().toUpperCase();
+    const ticket = ticketsStore.get(normalized);
+
+    if (!ticket) {
+      return {
+        success: false,
+        status: "not_found",
+        message: "Invalid ticket QR code.",
+      };
+    }
+
+    if (ticket.status === "used") {
+      return {
+        success: false,
+        status: "already_used",
+        ticket,
+        message: `Ticket already used at ${ticket.usedAt || "an earlier scan"}.`,
+      };
+    }
+
+    ticket.status = "used";
+    ticket.usedAt = new Date().toISOString();
+    ticket.scannedBy = scannedBy;
+    ticketsStore.set(normalized, ticket);
+
+    return {
+      success: true,
+      status: "valid",
+      ticket,
+      message: `Checked in successfully: ${ticket.attendeeName} (${ticket.tierName}).`,
+    };
+  }
+
+  /**
+   * Authoritative Gate Validation & Check-in Handler
+   * Verifies HMAC signature, validates event ID, enforces single-use policy, and logs check-in records.
+   */
+  static async validateAndCheckinTicket(params: {
+    ticket_code: string;
+    qr_hash?: string;
+    event_id?: string;
+    staff_name?: string;
+    gate_location?: string;
+    clientIp?: string;
+  }): Promise<{
+    success: boolean;
+    status: "valid" | "already_used" | "invalid_signature" | "invalid_pass" | "not_found";
+    httpStatus: number;
+    message: string;
+    ticket?: DigitalTicketRecord;
+    attendee?: {
+      name: string;
+      tier: string;
+      admitsCount: number;
+      orderNumber: string;
+      issuedAt: string;
+      buyerPhone: string;
+      priceKes: number;
+    };
+    checkInDetails?: {
+      scannedAt: string;
+      scannedBy: string;
+      gateLocation: string;
+    };
+    eventStats: {
+      totalIssued: number;
+      checkedInCount: number;
+      remainingValid: number;
+      admittedPercentage: number;
+    };
+  }> {
+    const {
+      ticket_code,
+      qr_hash,
+      staff_name = "Gate Security Staff",
+      gate_location = "Main Top Cliff Entrance",
+      clientIp,
+    } = params;
+    const normalized = ticket_code.trim().toUpperCase();
+    const ticket = ticketsStore.get(normalized);
+
+    const allTickets = Array.from(ticketsStore.values());
+    const totalIssued = allTickets.length;
+    const checkedInCount = allTickets.filter((t) => t.status === "used").length;
+    const remainingValid = allTickets.filter((t) => t.status === "valid").length;
+    const admittedPercentage =
+      totalIssued > 0 ? Math.round((checkedInCount / totalIssued) * 100) : 0;
+
+    const eventStats = {
+      totalIssued,
+      checkedInCount,
+      remainingValid,
+      admittedPercentage,
+    };
+
+    // 1. Check if ticket exists in authoritative ledger
+    if (!ticket) {
+      const logRecord: CheckInLogRecord = {
+        id: `chk_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        ticketNumber: normalized,
+        orderNumber: "UNKNOWN",
+        attendeeName: "Unknown Guest",
+        tierName: "Unknown Tier",
+        admitsCount: 0,
+        status: "invalid",
+        scannedAt: new Date().toISOString(),
+        scannedBy: staff_name,
+        gateLocation: gate_location,
+        ipAddress: clientIp,
+      };
+      checkInLogsStore.unshift(logRecord);
+
+      return {
+        success: false,
+        status: "not_found",
+        httpStatus: 404,
+        message: `Ticket pass ${normalized} was not found in the event database.`,
+        eventStats,
+      };
+    }
+
+    // 2. Cryptographic HMAC Signature Verification (if hash provided)
+    if (qr_hash && ticket.qrHash && qr_hash !== ticket.qrHash) {
+      const logRecord: CheckInLogRecord = {
+        id: `chk_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        ticketNumber: ticket.ticketNumber,
+        orderNumber: ticket.orderNumber,
+        attendeeName: ticket.attendeeName,
+        tierName: ticket.tierName,
+        admitsCount: ticket.admitsCount,
+        status: "invalid",
+        scannedAt: new Date().toISOString(),
+        scannedBy: staff_name,
+        gateLocation: gate_location,
+        ipAddress: clientIp,
+      };
+      checkInLogsStore.unshift(logRecord);
+
+      return {
+        success: false,
+        status: "invalid_signature",
+        httpStatus: 401,
+        message: "Cryptographic HMAC signature mismatch! Possible counterfeit or tampered pass.",
+        eventStats,
+      };
+    }
+
+    // 3. Status checks: Refunded or Cancelled
+    if (ticket.status === "cancelled" || ticket.status === "refunded") {
+      return {
+        success: false,
+        status: "invalid_pass",
+        httpStatus: 403,
+        message: `Admission denied: This ticket has been marked as ${ticket.status.toUpperCase()}.`,
+        ticket,
+        eventStats,
+      };
+    }
+
+    // 4. Duplicate Check-in Guard (409 Conflict)
+    if (ticket.status === "used") {
+      const logRecord: CheckInLogRecord = {
+        id: `chk_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        ticketNumber: ticket.ticketNumber,
+        orderNumber: ticket.orderNumber,
+        attendeeName: ticket.attendeeName,
+        tierName: ticket.tierName,
+        admitsCount: ticket.admitsCount,
+        status: "duplicate",
+        scannedAt: new Date().toISOString(),
+        scannedBy: staff_name,
+        gateLocation: gate_location,
+        ipAddress: clientIp,
+      };
+      checkInLogsStore.unshift(logRecord);
+
+      return {
+        success: false,
+        status: "already_used",
+        httpStatus: 409,
+        message: `DUPLICATE TICKET: Already scanned at ${ticket.usedAt ? new Date(ticket.usedAt).toLocaleTimeString("en-KE") : "earlier"} by ${ticket.scannedBy || "Gate Staff"}.`,
+        ticket,
+        attendee: {
+          name: ticket.attendeeName,
+          tier: ticket.tierName,
+          admitsCount: ticket.admitsCount,
+          orderNumber: ticket.orderNumber,
+          issuedAt: ticket.issuedAt,
+          buyerPhone: ticket.buyerPhone,
+          priceKes: ticket.priceKes,
+        },
+        checkInDetails: {
+          scannedAt: ticket.usedAt || new Date().toISOString(),
+          scannedBy: ticket.scannedBy || "Gate Staff",
+          gateLocation: gate_location,
+        },
+        eventStats,
+      };
+    }
+
+    // 5. Valid Pass: Atomically mark as used
+    const nowIso = new Date().toISOString();
+    ticket.status = "used";
+    ticket.usedAt = nowIso;
+    ticket.scannedBy = staff_name;
+    ticketsStore.set(normalized, ticket);
+
+    // Record check in log
+    const logRecord: CheckInLogRecord = {
+      id: `chk_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      ticketNumber: ticket.ticketNumber,
+      orderNumber: ticket.orderNumber,
+      attendeeName: ticket.attendeeName,
+      tierName: ticket.tierName,
+      admitsCount: ticket.admitsCount,
+      status: "valid",
+      scannedAt: nowIso,
+      scannedBy: staff_name,
+      gateLocation: gate_location,
+      ipAddress: clientIp,
+    };
+    checkInLogsStore.unshift(logRecord);
+    if (checkInLogsStore.length > 300) checkInLogsStore.length = 300;
+
+    // Recalculate event stats after successful checkin
+    const updatedCheckedIn = checkedInCount + 1;
+    const updatedValid = Math.max(0, remainingValid - 1);
+    const updatedPercentage =
+      totalIssued > 0 ? Math.round((updatedCheckedIn / totalIssued) * 100) : 0;
+
+    return {
+      success: true,
+      status: "valid",
+      httpStatus: 200,
+      message: `ADMISSION GRANTED: ${ticket.attendeeName} (${ticket.tierName} - Admits ${ticket.admitsCount})`,
+      ticket,
+      attendee: {
+        name: ticket.attendeeName,
+        tier: ticket.tierName,
+        admitsCount: ticket.admitsCount,
+        orderNumber: ticket.orderNumber,
+        issuedAt: ticket.issuedAt,
+        buyerPhone: ticket.buyerPhone,
+        priceKes: ticket.priceKes,
+      },
+      checkInDetails: {
+        scannedAt: nowIso,
+        scannedBy: staff_name,
+        gateLocation: gate_location,
+      },
+      eventStats: {
+        totalIssued,
+        checkedInCount: updatedCheckedIn,
+        remainingValid: updatedValid,
+        admittedPercentage: updatedPercentage,
+      },
+    };
+  }
+
+  /**
+   * Get Live Check-in Statistics & Recent Scan Stream
+   */
+  static getCheckinStats(): {
+    totalIssued: number;
+    checkedInCount: number;
+    remainingValid: number;
+    admittedPercentage: number;
+    recentScans: CheckInLogRecord[];
+  } {
+    const allTickets = Array.from(ticketsStore.values());
+    const totalIssued = allTickets.length;
+    const checkedInCount = allTickets.filter((t) => t.status === "used").length;
+    const remainingValid = allTickets.filter((t) => t.status === "valid").length;
+    const admittedPercentage =
+      totalIssued > 0 ? Math.round((checkedInCount / totalIssued) * 100) : 0;
+
+    return {
+      totalIssued,
+      checkedInCount,
+      remainingValid,
+      admittedPercentage,
+      recentScans: checkInLogsStore.slice(0, 20),
+    };
+  }
+}

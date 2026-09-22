@@ -27,6 +27,7 @@ import { Countdown } from "@/components/event/countdown";
 import { ShareActions } from "@/components/event/share-actions";
 import { TicketCard, type Ticket } from "@/components/event/ticket-card";
 import { VerveLogo, VerveIcon, VervePresenterBadge } from "@/components/brand/verve-logo";
+import { generateEventJsonLd } from "@/lib/seo/schema-event";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -35,7 +36,7 @@ export const Route = createFileRoute("/")({
       {
         name: "description",
         content:
-          "Hauntings of the Rift at The Lawns, Nakuru. 31 October 2026 from 4 PM. Presented by Verve & Co. Tickets from KES 1,000.",
+          "Hauntings of the Rift at Top Cliff Lounge, Nakuru. 31 October 2026 from 4 PM. Presented by Verve & Co. Tickets from KES 1,000.",
       },
       { property: "og:title", content: "Hauntings of the Rift — Verve & Co." },
       {
@@ -64,7 +65,7 @@ const nav = [
 ];
 const heroFacts: Array<[string, LucideIcon]> = [
   ["31 October 2026", Clock3],
-  ["The Lawns · Nakuru", MapPin],
+  ["Top Cliff Lounge · Nakuru", MapPin],
   ["4 PM — late", Moon],
 ];
 const experiences: Array<[string, string, string, LucideIcon]> = [
@@ -81,10 +82,7 @@ const experiences: Array<[string, string, string, LucideIcon]> = [
 const faqs: Array<[string, string]> = [
   ["Who can attend?", "This is an 18+ event."],
   ["What is the dress code?", "Wickedly Fabulous."],
-  [
-    "Where is the event?",
-    "The Lawns Restaurant, Oyster-Shell Rd, opposite Sarova Woodlands, Nakuru.",
-  ],
+  ["Where is the event?", "Top Cliff Lounge, Nakuru-Nairobi Highway, Free Area, Nakuru."],
   ["What time does it start?", "Doors open at 4 PM and the event continues till late."],
   [
     "How much are tickets?",
@@ -192,6 +190,8 @@ function MobileTicketBar({ visible }: { visible: boolean }) {
 function Index() {
   const heroRef = useRef<HTMLElement>(null);
   const [pastHero, setPastHero] = useState(false);
+  const eventJsonLd = generateEventJsonLd();
+
   useEffect(() => {
     const observer = new IntersectionObserver(([entry]) => setPastHero(!entry?.isIntersecting), {
       threshold: 0.12,
@@ -201,6 +201,10 @@ function Index() {
   }, []);
   return (
     <div className="bg-background pb-20 text-foreground lg:pb-0">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(eventJsonLd) }}
+      />
       <Header />
       <section
         ref={heroRef}
@@ -395,13 +399,13 @@ function Index() {
             <p className="mt-12 text-xs font-bold uppercase tracking-[.3em] text-lavender">
               The gathering place
             </p>
-            <h2 className="mt-3 text-5xl text-bone">The Lawns Restaurant</h2>
+            <h2 className="mt-3 text-5xl text-bone">Top Cliff Lounge</h2>
             <p className="mt-4 max-w-md text-lg text-muted-foreground">
-              Oyster-Shell Rd, opposite Sarova Woodlands, Nakuru
+              Nakuru-Nairobi Highway, Free Area, Nakuru
             </p>
             <Button asChild variant="event" size="xl" className="mt-8">
               <a
-                href="https://www.google.com/maps/search/?api=1&query=The+Lawns+Restaurant+Nakuru"
+                href="https://www.google.com/maps/search/?api=1&query=Top+Cliff+Lounge+Nakuru"
                 target="_blank"
                 rel="noreferrer"
               >
@@ -412,7 +416,7 @@ function Index() {
           <div className="relative min-h-72 overflow-hidden border-t border-border lg:border-l lg:border-t-0">
             <img
               src={heroImage}
-              alt="Night view evoking The Lawns event setting"
+              alt="Night view evoking Top Cliff Lounge event setting"
               loading="lazy"
               width={1536}
               height={1024}
@@ -453,7 +457,7 @@ function Index() {
 
       <section className="poster-grain px-4 py-24 text-center sm:px-6 lg:py-36">
         <p className="text-xs font-bold uppercase tracking-[.35em] text-lavender">
-          31 October 2026 · The Lawns
+          31 October 2026 · Top Cliff Lounge
         </p>
         <h2 className="mx-auto mt-4 max-w-5xl text-6xl leading-[.85] text-bone sm:text-8xl">
           Nakuru. Are you ready?
@@ -486,9 +490,13 @@ function Index() {
             </p>
           </div>
           <div className="flex items-center gap-4 text-xs text-muted-foreground">
+            <Link to="/recover" className="text-bone-muted hover:text-bone underline">
+              Find / Recover Ticket
+            </Link>
+            <span>·</span>
             <span>31 October 2026</span>
             <span>·</span>
-            <span>The Lawns, Nakuru</span>
+            <span>Top Cliff Lounge, Nakuru</span>
             <span>·</span>
             <span className="border border-border/80 px-1.5 py-0.5 font-mono text-[10px]">18+</span>
           </div>

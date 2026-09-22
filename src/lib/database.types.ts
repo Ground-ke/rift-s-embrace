@@ -1,7 +1,16 @@
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
 export type SalesStatus = "scheduled" | "active" | "paused" | "ended" | "sold_out";
-export type OrderStatus = "pending" | "processing" | "paid" | "failed" | "cancelled" | "refunded";
+export type OrderStatus =
+  | "pending"
+  | "processing"
+  | "paid"
+  | "pending_approval"
+  | "approved"
+  | "rejected"
+  | "failed"
+  | "cancelled"
+  | "refunded";
 export type ReservationStatus = "active" | "completed" | "expired" | "released";
 export type PaymentStatus = "initiated" | "success" | "failed" | "timed_out";
 export type TicketStatus = "valid" | "used" | "cancelled" | "refunded";
@@ -63,21 +72,46 @@ export interface Database {
       promotions: {
         Row: {
           id: string;
-          event_id: string;
-          ticket_type_id: string;
-          name: string;
-          promotional_price_kes: number;
-          quantity_limit: number | null;
-          quantity_sold: number;
-          starts_at: string;
-          ends_at: string;
-          active: boolean;
+          event_id: string | null;
+          ticket_type_id: string | null;
+          code: string;
+          name: string | null;
+          discount_type: "percentage" | "fixed";
+          discount_value: number;
+          max_uses: number;
+          current_uses: number;
+          expires_at: string | null;
+          is_active: boolean;
+          promotional_price_kes?: number;
+          quantity_limit?: number | null;
+          quantity_sold?: number;
+          starts_at?: string;
+          ends_at?: string;
+          active?: boolean;
           created_at: string;
           updated_at: string;
         };
         Insert: Partial<Database["public"]["Tables"]["promotions"]["Row"]>;
         Update: Partial<Database["public"]["Tables"]["promotions"]["Row"]>;
         Relationships: [];
+      };
+      user_roles: {
+        Row: {
+          id: string;
+          user_id: string;
+          role: "admin" | "scanner" | "customer";
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Omit<
+          Database["public"]["Tables"]["user_roles"]["Row"],
+          "id" | "created_at" | "updated_at"
+        > & {
+          id?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["user_roles"]["Insert"]>;
       };
       orders: {
         Row: {
@@ -217,6 +251,18 @@ export interface Database {
           p_ttl_minutes?: number;
         };
         Returns: Json;
+      };
+      is_admin: {
+        Args: {
+          p_user_id?: string;
+        };
+        Returns: boolean;
+      };
+      is_scanner: {
+        Args: {
+          p_user_id?: string;
+        };
+        Returns: boolean;
       };
     };
   };

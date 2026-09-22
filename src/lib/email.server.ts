@@ -12,7 +12,8 @@ export async function sendRecoveryEmail(input: {
 }): Promise<void> {
   const apiKey = process.env["RESEND_API_KEY"];
   const siteUrl = process.env["SITE_URL"] ?? "https://hauntings-of-the-rift.lovable.app";
-  const from = process.env["RECOVERY_FROM_EMAIL"] ?? "Hauntings of the Rift <onboarding@resend.dev>";
+  const from =
+    process.env["RECOVERY_FROM_EMAIL"] ?? "Hauntings of the Rift <onboarding@resend.dev>";
 
   const list = input.links
     .map((link) => `<li><a href="${siteUrl}${link.url}">${link.tier} ticket</a></li>`)

@@ -20,9 +20,9 @@ export const DEFAULT_EVENT: EventRecord = {
   tagline: "Presented by Verve & Co.",
   description:
     "A premier Halloween nightlife experience in Nakuru. High-energy electronic atmosphere, curated signature cocktails, and immersive soundscapes.",
-  venue_name: "The Lawns Restaurant",
-  venue_address: "Oyster-Shell Rd, opposite Sarova Woodlands, Nakuru",
-  venue_directions: "Opposite Sarova Woodlands along Oyster-Shell Rd",
+  venue_name: "Top Cliff Lounge",
+  venue_address: "Nakuru-Nairobi Highway, Free Area, Nakuru",
+  venue_directions: "Along Nakuru-Nairobi Highway, Free Area, Nakuru",
   event_date: "2026-10-31",
   start_time: "16:00:00",
   end_time: null,
