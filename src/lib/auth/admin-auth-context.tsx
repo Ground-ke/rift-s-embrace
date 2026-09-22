@@ -277,13 +277,18 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
       return { success: true };
     } catch (err: unknown) {
       console.error("Firebase Google Sign-In Error:", err);
-      const code = typeof err === "object" && err !== null && "code" in err ? String((err as { code: unknown }).code) : "";
+      const code =
+        typeof err === "object" && err !== null && "code" in err
+          ? String((err as { code: unknown }).code)
+          : "";
       let message = err instanceof Error ? err.message : "Google authentication failed.";
-      
+
       if (code === "auth/popup-blocked") {
-        message = "Google Sign-In popup was blocked by your browser. Please allow popups for this site or use the organizer credentials below.";
+        message =
+          "Google Sign-In popup was blocked by your browser. Please allow popups for this site or use the organizer credentials below.";
       } else if (code === "auth/unauthorized-domain") {
-        message = "This domain is not yet listed in Firebase Authorized Domains. Add your domain (including *.vercel.app if deploying to Vercel) in the Firebase Console under Authentication > Settings > Authorized Domains.";
+        message =
+          "This domain is not yet listed in Firebase Authorized Domains. Add your domain (including *.vercel.app if deploying to Vercel) in the Firebase Console under Authentication > Settings > Authorized Domains.";
       } else if (code === "auth/cancelled-popup-request" || code === "auth/popup-closed-by-user") {
         message = "Sign-in popup was closed before completion. Please try again.";
       }

@@ -248,7 +248,15 @@
         },
         "status": {
           "type": "string",
-          "enum": ["pending", "pending_approval", "completed", "approved", "rejected", "cancelled", "refunded"],
+          "enum": [
+            "pending",
+            "pending_approval",
+            "completed",
+            "approved",
+            "rejected",
+            "cancelled",
+            "refunded"
+          ],
           "description": "Payment and order fulfillment status"
         },
         "mpesaCode": {

@@ -145,7 +145,8 @@ function AdminLogin() {
               Active Admin Session Detected
             </div>
             <p className="text-[11px] text-emerald-200/80 mb-3">
-              Signed in as <span className="font-mono text-emerald-100">{user?.email}</span> ({user?.name || "Administrator"}).
+              Signed in as <span className="font-mono text-emerald-100">{user?.email}</span> (
+              {user?.name || "Administrator"}).
             </p>
             <div className="flex items-center gap-2">
               <Button
@@ -321,7 +322,8 @@ function AdminLogin() {
         <div className="mt-6 flex items-start gap-2 text-[11px] text-muted-foreground font-mono">
           <CheckCircle2 className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
           <span>
-            Protected by Cloud Firestore access rules, rate-limited tokens, and immutable audit logs.
+            Protected by Cloud Firestore access rules, rate-limited tokens, and immutable audit
+            logs.
           </span>
         </div>
       </div>
