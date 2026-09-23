@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import {
   CheckCircle2,
@@ -10,6 +10,9 @@ import {
   RotateCcw,
   Ticket,
   ArrowRight,
+  Copy,
+  Check,
+  Info,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -52,6 +55,16 @@ export const PaymentStatusCard: React.FC<PaymentStatusCardProps> = ({
   onCheckStatusAgain,
   onCancelReservation,
 }) => {
+  const [copiedField, setCopiedField] = useState<string | null>(null);
+
+  const handleCopy = (text: string, label: string) => {
+    if (typeof navigator !== "undefined" && navigator.clipboard) {
+      navigator.clipboard.writeText(text);
+      setCopiedField(label);
+      setTimeout(() => setCopiedField(null), 2000);
+    }
+  };
+
   return (
     <div className="space-y-6" id="payment-status-container">
       {/* Reservation Expiry Timer Warning if active */}
@@ -111,6 +124,133 @@ export const PaymentStatusCard: React.FC<PaymentStatusCardProps> = ({
           <strong className="font-display text-3xl text-bone">
             KES {totalKes.toLocaleString()}
           </strong>
+        </div>
+      </div>
+
+      {/* Payment Details Box with Separate Copy Buttons */}
+      <div className="border border-amber-500/30 bg-card p-6 space-y-4">
+        <div>
+          <h2 className="text-lg font-display text-bone flex items-center gap-2">
+            <Smartphone className="size-5 text-amber-400" />
+            Official M-Pesa Paybill Payment Details
+          </h2>
+          <p className="text-xs text-muted-foreground mt-1 font-mono">
+            Copy each detail below to complete your payment in the M-Pesa app or SIM toolkit:
+          </p>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-4 bg-background/60 border border-amber-500/20 p-4">
+          <div>
+            <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-mono block">
+              Business No.
+            </span>
+            <div className="flex items-center justify-between mt-1">
+              <span className="font-mono text-xl font-bold text-amber-300">522533</span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => handleCopy("522533", "Business No")}
+                className="h-7 px-2 text-xs text-amber-300 hover:bg-amber-950/40"
+                title="Copy Business No"
+              >
+                {copiedField === "Business No" ? (
+                  <Check className="size-3.5 text-emerald-400" />
+                ) : (
+                  <Copy className="size-3.5" />
+                )}
+              </Button>
+            </div>
+          </div>
+
+          <div>
+            <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-mono block">
+              Account No.
+            </span>
+            <div className="flex items-center justify-between mt-1">
+              <span className="font-mono text-xl font-bold text-bone">8142205</span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => handleCopy("8142205", "Account No")}
+                className="h-7 px-2 text-xs text-bone hover:bg-card"
+                title="Copy Account No"
+              >
+                {copiedField === "Account No" ? (
+                  <Check className="size-3.5 text-emerald-400" />
+                ) : (
+                  <Copy className="size-3.5" />
+                )}
+              </Button>
+            </div>
+          </div>
+
+          <div>
+            <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-mono block">
+              Account Name
+            </span>
+            <div className="flex items-center justify-between mt-1">
+              <span className="font-mono text-sm font-bold text-emerald-300 truncate">
+                vervenexus
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => handleCopy("vervenexus", "Account Name")}
+                className="h-7 px-2 text-xs text-emerald-300 hover:bg-emerald-950/40"
+                title="Copy Account Name"
+              >
+                {copiedField === "Account Name" ? (
+                  <Check className="size-3.5 text-emerald-400" />
+                ) : (
+                  <Copy className="size-3.5" />
+                )}
+              </Button>
+            </div>
+          </div>
+
+          <div>
+            <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-mono block">
+              Amount Due
+            </span>
+            <div className="flex items-center justify-between mt-1">
+              <span className="font-mono text-lg font-bold text-amber-400">
+                KES {totalKes.toLocaleString()}
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => handleCopy(String(totalKes), "Amount")}
+                className="h-7 px-2 text-xs text-amber-400 hover:bg-amber-950/40"
+                title="Copy Amount"
+              >
+                {copiedField === "Amount" ? (
+                  <Check className="size-3.5 text-emerald-400" />
+                ) : (
+                  <Copy className="size-3.5" />
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        {/* Step-by-Step Guidance */}
+        <div className="border border-border/80 bg-card/40 p-3.5 text-xs font-mono text-muted-foreground space-y-1.5">
+          <div className="flex items-center gap-2 text-bone font-semibold">
+            <Info className="size-4 text-amber-400" /> Quick Steps:
+          </div>
+          <p className="text-bone-muted">
+            1. Lipa na M-Pesa &rarr; Paybill &rarr; Business:{" "}
+            <strong className="text-amber-300">522533</strong> &rarr; Account:{" "}
+            <strong className="text-bone">8142205</strong>
+          </p>
+          <p className="text-bone-muted">
+            2. Verify name reads: <strong className="text-emerald-400">vervenexus</strong> &rarr;
+            Amount: <strong className="text-amber-400">KES {totalKes.toLocaleString()}</strong>
+          </p>
+          <p className="text-bone-muted">
+            3. Enter PIN &amp; complete payment. Your pass will be instantly verified and emailed
+            with your ticket attached.
+          </p>
         </div>
       </div>
 

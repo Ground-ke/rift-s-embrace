@@ -237,6 +237,94 @@ export class OrderService {
   }
 
   /**
+   * Get all ticket tier configurations
+   */
+  static getTicketTypes(): TicketTypeConfig[] {
+    return Object.values(defaultTicketTypes);
+  }
+
+  /**
+   * Authoritatively update ticket tier pricing and configuration
+   */
+  static updateTicketType(
+    slug: string,
+    updates: {
+      name?: string;
+      priceKes?: number;
+      admitsCount?: number;
+      totalInventory?: number | null;
+      active?: boolean;
+    },
+  ): { success: boolean; tier?: TicketTypeConfig; message?: string } {
+    const tier = defaultTicketTypes[slug];
+    if (!tier) {
+      return { success: false, message: `Ticket tier '${slug}' was not found.` };
+    }
+
+    if (updates.name !== undefined && updates.name.trim()) {
+      tier.name = updates.name.trim();
+    }
+    if (updates.priceKes !== undefined) {
+      tier.priceKes = Math.max(0, Math.round(Number(updates.priceKes)));
+    }
+    if (updates.admitsCount !== undefined) {
+      tier.admitsCount = Math.max(1, Math.round(Number(updates.admitsCount)));
+    }
+    if (updates.totalInventory !== undefined) {
+      tier.totalInventory =
+        updates.totalInventory === null
+          ? null
+          : Math.max(0, Math.round(Number(updates.totalInventory)));
+    }
+    if (updates.active !== undefined) {
+      tier.active = Boolean(updates.active);
+    }
+
+    return { success: true, tier };
+  }
+
+  /**
+   * Authoritatively create a new ticket tier
+   */
+  static createTicketType(config: {
+    slug: string;
+    name: string;
+    priceKes: number;
+    admitsCount?: number;
+    totalInventory?: number | null;
+  }): { success: boolean; tier?: TicketTypeConfig; message?: string } {
+    const normalizedSlug = config.slug
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9_-]/g, "-");
+
+    if (!normalizedSlug) {
+      return { success: false, message: "A valid tier slug is required." };
+    }
+
+    if (defaultTicketTypes[normalizedSlug]) {
+      return { success: false, message: `Ticket tier '${normalizedSlug}' already exists.` };
+    }
+
+    const newTier: TicketTypeConfig = {
+      id: `00000000-0000-0000-0000-${Date.now().toString(16).padStart(12, "0").slice(-12)}`,
+      eventId: "00000000-0000-0000-0000-000000000001",
+      slug: normalizedSlug,
+      name: config.name.trim() || normalizedSlug,
+      priceKes: Math.max(0, Math.round(Number(config.priceKes))),
+      admitsCount: Math.max(1, Math.round(Number(config.admitsCount) || 1)),
+      totalInventory: config.totalInventory !== undefined ? config.totalInventory : null,
+      soldCount: 0,
+      purchaseLimit: null,
+      isConfigured: true,
+      active: true,
+    };
+
+    defaultTicketTypes[normalizedSlug] = newTier;
+    return { success: true, tier: newTier };
+  }
+
+  /**
    * Release expired reservations and update order statuses
    */
   static cleanExpiredReservations(): void {

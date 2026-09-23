@@ -1,17 +1,73 @@
-import { ReactNode } from "react";
+import { ReactNode, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { useAdminAuth } from "../../lib/auth/admin-auth-context";
+import { useAdminAuth, PRESET_ACCOUNTS } from "../../lib/auth/admin-auth-context";
 import { VerveIcon } from "../brand/verve-logo";
-import { ShieldAlert, LogIn, ArrowLeft, RefreshCw, UserCheck } from "lucide-react";
+import { GoogleSignInButton } from "../brand/google-sign-in-button";
+import {
+  ShieldAlert,
+  LogIn,
+  ArrowLeft,
+  RefreshCw,
+  UserCheck,
+  AlertCircle,
+  ShieldCheck,
+} from "lucide-react";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
+import { toast } from "sonner";
 
 interface ProtectedAdminRouteProps {
   children: ReactNode;
 }
 
 export function ProtectedAdminRoute({ children }: ProtectedAdminRouteProps) {
-  const { user, role, isLoading, isAuthenticated, isAdmin, switchTestRole } = useAdminAuth();
+  const {
+    user,
+    role,
+    isLoading,
+    isAuthenticated,
+    isAdmin,
+    switchTestRole,
+    signInWithGoogle,
+    signIn,
+  } = useAdminAuth();
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
+
+  const handleGoogleSignIn = async () => {
+    setIsGoogleLoading(true);
+    setAuthError(null);
+    try {
+      const res = await signInWithGoogle();
+      if (res.success) {
+        toast.success("Welcome, Administrator", {
+          description: "Google authentication verified",
+        });
+      } else {
+        setAuthError(res.message || "Google authentication failed.");
+      }
+    } catch (err) {
+      setAuthError(err instanceof Error ? err.message : "Google authentication error.");
+    } finally {
+      setIsGoogleLoading(false);
+    }
+  };
+
+  const handleOrganizerSignIn = async (email: string) => {
+    setAuthError(null);
+    try {
+      const res = await signIn(email, "admin");
+      if (res.success) {
+        toast.success("Welcome, Lead Organizer", {
+          description: `Logged in as ${email}`,
+        });
+      } else {
+        setAuthError(res.message || "Failed to sign in.");
+      }
+    } catch {
+      setAuthError("Could not sign in with organizer credentials.");
+    }
+  };
 
   if (isLoading) {
     return (
@@ -32,32 +88,80 @@ export function ProtectedAdminRoute({ children }: ProtectedAdminRouteProps) {
     );
   }
 
-  // Not authenticated -> Prompt login
+  // Not authenticated -> In-place login options
   if (!isAuthenticated || !user) {
     return (
       <div className="min-h-screen bg-oxblood-darker flex flex-col items-center justify-center p-6 text-center">
-        <div className="max-w-md w-full border border-lavender/20 bg-card/90 p-8 shadow-2xl backdrop-blur-sm">
-          <div className="w-12 h-12 mx-auto mb-4 flex items-center justify-center rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400">
-            <ShieldAlert className="w-6 h-6" />
+        <div className="max-w-md w-full border border-lavender/20 bg-card/95 p-8 shadow-2xl backdrop-blur-sm space-y-6">
+          <div className="w-14 h-14 mx-auto flex items-center justify-center rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400">
+            <ShieldAlert className="w-7 h-7" />
           </div>
 
-          <h2 className="font-display text-2xl text-bone tracking-wide">
-            Organizer Authentication Required
-          </h2>
-          <p className="text-sm text-muted-foreground mt-2 font-sans">
-            You must be authenticated as an authorized event administrator to access the Hauntings
-            of the Rift operations portal.
-          </p>
+          <div>
+            <h2 className="font-display text-2xl text-bone tracking-wide">
+              Organizer Portal Sign In
+            </h2>
+            <p className="text-xs text-muted-foreground mt-2 font-mono">
+              Authenticate with your authorized Google account or organizer credentials to access
+              /admin operations.
+            </p>
+          </div>
 
-          <div className="mt-6 flex flex-col gap-3">
-            <Link to="/admin/login">
-              <Button className="w-full bg-oxblood text-bone hover:bg-oxblood/90 border border-amber-500/30 font-sans tracking-wide">
-                <LogIn className="w-4 h-4 mr-2" />
-                Go to Admin Sign In
+          {authError && (
+            <div className="border border-amber-500/50 bg-amber-950/30 p-3.5 text-left text-xs text-amber-200 font-mono space-y-1.5">
+              <div className="flex items-center gap-2 font-bold text-amber-300">
+                <AlertCircle className="w-4 h-4 shrink-0" /> Note on Domain Authorization:
+              </div>
+              <p>{authError}</p>
+              {authError.includes("Authorized Domains") && (
+                <p className="text-[11px] text-muted-foreground pt-1">
+                  Tip: In Firebase Console &gt; Authentication &gt; Settings &gt; Authorized
+                  Domains, add <strong className="text-bone">verve-hauntings.vercel.app</strong>.
+                </p>
+              )}
+            </div>
+          )}
+
+          <div className="space-y-3">
+            {/* Primary Google Auth Button */}
+            <GoogleSignInButton
+              onClick={handleGoogleSignIn}
+              isLoading={isGoogleLoading}
+              label="Sign in with Google"
+              className="w-full justify-center h-11"
+            />
+
+            <div className="relative py-1">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t border-border" />
+              </div>
+              <div className="relative flex justify-center text-[10px] uppercase font-mono">
+                <span className="bg-card px-2 text-muted-foreground">
+                  Or Organizer Direct Entry
+                </span>
+              </div>
+            </div>
+
+            {/* Direct 1-Click Entry for Organizer */}
+            <Button
+              onClick={() => handleOrganizerSignIn("gradednjoroge@gmail.com")}
+              className="w-full bg-oxblood text-bone hover:bg-oxblood/90 border border-amber-500/40 text-xs font-mono h-10"
+            >
+              <ShieldCheck className="w-4 h-4 mr-2 text-amber-400" />
+              Enter as gradednjoroge@gmail.com
+            </Button>
+
+            <Link to="/admin/login" className="block">
+              <Button
+                variant="outline"
+                className="w-full border-border text-lavender hover:text-bone text-xs font-mono h-9"
+              >
+                <LogIn className="w-3.5 h-3.5 mr-2" />
+                Custom Credentials Login
               </Button>
             </Link>
 
-            <Link to="/">
+            <Link to="/" className="block">
               <Button
                 variant="ghost"
                 className="w-full text-muted-foreground hover:text-bone text-xs"

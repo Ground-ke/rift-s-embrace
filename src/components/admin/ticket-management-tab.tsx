@@ -468,7 +468,8 @@ export function TicketManagementTab() {
                   <p className="text-bone font-display text-sm">No Digital Passes Issued Yet</p>
                   <p className="max-w-md mx-auto text-muted-foreground text-[11px]">
                     Passes are generated cryptographically when customer orders are approved in the
-                    M-Pesa Verification Queue or via direct checkout. Live synchronization is active.
+                    M-Pesa Verification Queue or via direct checkout. Live synchronization is
+                    active.
                   </p>
                 </TableCell>
               </TableRow>

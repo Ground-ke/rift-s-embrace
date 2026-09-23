@@ -29,7 +29,89 @@ function getResendClient(): Resend | null {
 // -----------------------------------------------------------------------------
 
 /**
- * Sends official ticket confirmation email with digital ticket links
+ * Generates an offline, self-contained printable digital ticket pass HTML
+ */
+function generatePrintableTicketPassHtml({
+  buyerName,
+  orderNumber,
+  totalKes,
+  ticketTier,
+  quantity,
+  primaryUrl,
+  tickets,
+}: {
+  buyerName: string;
+  orderNumber: string;
+  totalKes: number;
+  ticketTier: string;
+  quantity: number;
+  primaryUrl: string;
+  tickets?: TicketEmailItem[];
+}): string {
+  const primaryCode = (tickets && tickets[0]?.ticketNumber) || orderNumber;
+  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(
+    JSON.stringify({
+      order: orderNumber,
+      code: primaryCode,
+      tier: ticketTier,
+      event: "HALLOWEEN_RIFT_2026",
+    }),
+  )}`;
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admission Pass — ${orderNumber} — Verve &amp; Co.</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0c070b; color: #f5f3ef; margin: 0; padding: 24px; }
+    .ticket-card { max-width: 520px; margin: 0 auto; background: #180f16; border: 2px solid #f59e0b; border-radius: 16px; padding: 28px; box-shadow: 0 20px 40px rgba(0,0,0,0.8); }
+    .header { text-align: center; border-bottom: 1px dashed #4b2a3d; padding-bottom: 20px; }
+    .logo { color: #f59e0b; font-size: 24px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; }
+    .event-title { font-size: 18px; color: #fdf2f8; margin-top: 6px; font-weight: 600; }
+    .qr-container { text-align: center; margin: 24px 0; }
+    .qr-box { background: #ffffff; padding: 14px; border-radius: 12px; display: inline-block; box-shadow: 0 4px 12px rgba(0,0,0,0.4); }
+    .details { margin: 20px 0; font-size: 14px; line-height: 1.6; }
+    .details-row { display: flex; justify-content: space-between; margin-bottom: 8px; border-bottom: 1px solid #281822; padding-bottom: 4px; }
+    .label { color: #9ca3af; text-transform: uppercase; font-size: 11px; letter-spacing: 1px; }
+    .value { font-weight: 600; color: #f3f4f6; }
+    .venue { font-size: 12px; color: #d1d5db; background: #241420; padding: 12px; border-radius: 8px; margin-top: 16px; border-left: 3px solid #f59e0b; }
+    .btn { display: block; text-align: center; background: #f59e0b; color: #0c070b; text-decoration: none; font-weight: 700; padding: 12px; border-radius: 8px; margin-top: 20px; text-transform: uppercase; font-size: 13px; letter-spacing: 1px; }
+  </style>
+</head>
+<body>
+  <div class="ticket-card">
+    <div class="header">
+      <div class="logo">Verve &amp; Co.</div>
+      <div class="event-title">Hauntings of the Rift — Official Admission Pass</div>
+    </div>
+    <div class="qr-container">
+      <div class="qr-box">
+        <img src="${qrUrl}" alt="Gate Entry QR Code" width="220" height="220" style="display: block;" />
+      </div>
+      <div style="font-family: monospace; font-size: 12px; color: #f59e0b; margin-top: 8px;">${primaryCode}</div>
+    </div>
+    <div class="details">
+      <div class="details-row"><span class="label">Guest Name</span><span class="value">${buyerName}</span></div>
+      <div class="details-row"><span class="label">Order Ref</span><span class="value" style="font-family: monospace;">${orderNumber}</span></div>
+      <div class="details-row"><span class="label">Pass Selection</span><span class="value">${ticketTier} (x${quantity})</span></div>
+      <div class="details-row"><span class="label">Total Paid</span><span class="value" style="color: #10b981;">KES ${totalKes.toLocaleString()} (vervenexus)</span></div>
+      ${tickets && tickets[0] ? `<div class="details-row"><span class="label">Ticket Pass Code</span><span class="value" style="font-family: monospace;">${tickets[0].ticketNumber}</span></div>` : ""}
+    </div>
+    <div class="venue">
+      <strong>Venue:</strong> Top Cliff Lounge, Nakuru-Nairobi Highway<br/>
+      <strong>Date:</strong> Saturday, 31 October 2026 · Gates Open 4:00 PM EAT<br/>
+      <strong>Entry Policy:</strong> Strictly 21+ with Valid Government ID. Present this QR code at gate checkpoint.
+    </div>
+    <a href="${primaryUrl}" class="btn" target="_blank">Open Online Pass &amp; Details</a>
+  </div>
+</body>
+</html>`;
+}
+
+/**
+ * Sends official ticket confirmation email with digital ticket links and attached printable pass
  */
 export async function sendTicketConfirmationEmail({
   to,
@@ -58,7 +140,7 @@ export async function sendTicketConfirmationEmail({
   const primaryUrl =
     ticketUrl ||
     (tickets && tickets[0]?.ticketUrl) ||
-    "https://hauntingsoftherift.co.ke/ticket/demo";
+    "https://verve-hauntings.vercel.app/ticket/demo";
 
   const emailHtml = generateBookingConfirmationEmailHtml({
     customer_name: buyerName,
@@ -70,11 +152,22 @@ export async function sendTicketConfirmationEmail({
     ticket_url: primaryUrl,
   });
 
+  const printableTicketPassHtml = generatePrintableTicketPassHtml({
+    buyerName,
+    orderNumber,
+    totalKes,
+    ticketTier: tier,
+    quantity: qty,
+    primaryUrl,
+    tickets,
+  });
+
   if (!client) {
     console.info(`[Email Service - Simulated] Ticket email generated for ${to}:`, {
       orderNumber,
       buyerName,
       totalKes,
+      hasAttachment: true,
     });
     return { success: true, simulated: true };
   }
@@ -85,6 +178,12 @@ export async function sendTicketConfirmationEmail({
       to,
       subject: `Your Pass to Hauntings of the Rift (${orderNumber}) — Verve & Co.`,
       html: emailHtml,
+      attachments: [
+        {
+          filename: `Pass-${orderNumber}.html`,
+          content: Buffer.from(printableTicketPassHtml).toString("base64"),
+        },
+      ],
     });
 
     if (error) {

@@ -35,7 +35,7 @@ import { ProtectedAdminRoute } from "@/components/admin/protected-admin-route";
 import { TicketManagementTab } from "@/components/admin/ticket-management-tab";
 import { PromotionManagementTab } from "@/components/admin/promotion-management-tab";
 import { ScannerManagementTab } from "@/components/admin/scanner-management-tab";
-import { AuditLogTab } from "@/components/admin/audit-log-tab";
+import { TicketTiersPricingTab } from "@/components/admin/ticket-tiers-pricing-tab";
 import { NotificationCenterTab } from "@/components/admin/notification-center-tab";
 import { AnalyticsLiveTab } from "@/components/admin/analytics-live-tab";
 import { ManualVerificationTab } from "@/components/admin/manual-verification-tab";
@@ -152,7 +152,8 @@ function AdminDashboardContent() {
             remainingCapacity,
             activePromotionsCount: prev?.activePromotionsCount ?? 4,
             activeScannersCount: prev?.activeScannersCount ?? 3,
-            hourlySalesTrend: hourlySalesTrend.length > 0 ? hourlySalesTrend : (prev?.hourlySalesTrend ?? []),
+            hourlySalesTrend:
+              hourlySalesTrend.length > 0 ? hourlySalesTrend : (prev?.hourlySalesTrend ?? []),
           };
         });
       }
@@ -219,7 +220,7 @@ function AdminDashboardContent() {
       icon: QrCode,
       badge: metrics ? `${metrics.activeScannersCount} Active` : undefined,
     },
-    { id: "audit", label: "Audit Ledger", icon: FileText },
+    { id: "tiers", label: "Ticket Tiers & Pricing", icon: CircleDollarSign },
   ];
 
   return (
@@ -494,8 +495,14 @@ function AdminDashboardContent() {
                   {metrics?.hourlySalesTrend && metrics.hourlySalesTrend.length > 0 ? (
                     <div className="mt-6 flex h-48 items-end gap-2 border-b border-l border-border/80 px-2 pb-2">
                       {metrics.hourlySalesTrend.map((item, idx) => {
-                        const maxSale = Math.max(...metrics.hourlySalesTrend.map((t) => t.sales), 10000);
-                        const heightPercent = Math.max(12, Math.round((item.sales / maxSale) * 100));
+                        const maxSale = Math.max(
+                          ...metrics.hourlySalesTrend.map((t) => t.sales),
+                          10000,
+                        );
+                        const heightPercent = Math.max(
+                          12,
+                          Math.round((item.sales / maxSale) * 100),
+                        );
                         return (
                           <div
                             key={idx}
@@ -522,7 +529,8 @@ function AdminDashboardContent() {
                         <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse mx-auto" />
                         <p className="text-bone font-medium">Real-Time Telemetry Connected</p>
                         <p className="text-[11px] text-muted-foreground max-w-sm">
-                          Hourly checkout velocity will graph here automatically as passes are issued and approved.
+                          Hourly checkout velocity will graph here automatically as passes are
+                          issued and approved.
                         </p>
                       </div>
                     </div>
@@ -628,8 +636,8 @@ function AdminDashboardContent() {
           {/* TAB 5: SCANNERS & GATE MANAGEMENT */}
           {activeTab === "scanners" && <ScannerManagementTab />}
 
-          {/* TAB 6: AUDIT LOG */}
-          {activeTab === "audit" && <AuditLogTab />}
+          {/* TAB 6: TICKET TIERS & PRICING */}
+          {activeTab === "tiers" && <TicketTiersPricingTab />}
         </main>
       </div>
     </div>

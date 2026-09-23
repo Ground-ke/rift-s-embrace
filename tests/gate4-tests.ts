@@ -374,6 +374,7 @@ async function runGate4TestSuite() {
   if (failed > 0) {
     process.exit(1);
   }
+  process.exit(0);
 }
 
 runGate4TestSuite().catch((err) => {

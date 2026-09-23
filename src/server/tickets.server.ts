@@ -338,6 +338,28 @@ export class TicketsServerService {
       txRecord.updatedAt = Date.now();
       transactionsStore.set(idempotencyKey, txRecord);
 
+      // 6. Automatically dispatch confirmation email with ticket pass attached to buyer
+      if (order.buyerEmail) {
+        sendTicketConfirmationEmail({
+          to: order.buyerEmail,
+          buyerName: order.buyerName,
+          orderNumber: order.orderNumber,
+          totalKes: order.totalKes,
+          ticketTier: order.ticketName,
+          quantity: order.quantity,
+          ticketUrl: `https://verve-hauntings.vercel.app/ticket/${tickets[0]?.ticketNumber || "demo"}`,
+          tickets: tickets.map((t) => ({
+            ticketNumber: t.ticketNumber,
+            tierName: t.tierName,
+            attendeeName: t.attendeeName,
+            admitsCount: t.admitsCount,
+            ticketUrl: `https://verve-hauntings.vercel.app/ticket/${t.ticketNumber}`,
+          })),
+        }).catch((emailErr) => {
+          console.warn("Could not dispatch ticket confirmation email:", emailErr);
+        });
+      }
+
       return {
         success: true,
         status: "completed",

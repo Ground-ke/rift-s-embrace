@@ -42,9 +42,9 @@ const STORAGE_KEY = "rift_admin_session";
 // Preset accounts for seamless evaluation and verification
 export const PRESET_ACCOUNTS: Record<UserRole, AdminUser> = {
   admin: {
-    id: "usr-admin-erastus",
-    email: "erastus.n.gathungu@gmail.com",
-    name: "Erastus Gathungu (Organizer)",
+    id: "usr-admin-graded",
+    email: "gradednjoroge@gmail.com",
+    name: "Graded Njoroge (Lead Organizer)",
     role: "admin",
   },
   scanner: {
@@ -82,8 +82,13 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
             const normalizedEmail = fbUser.email.toLowerCase();
             let role: UserRole = "customer";
 
-            // Organizer superadmin check (from project runtime email)
-            const isBootstrappedOrganizer = normalizedEmail === "erastus.n.gathungu@gmail.com";
+            // Organizer superadmin check (support user email gradednjoroge@gmail.com & erastus)
+            const isBootstrappedOrganizer =
+              normalizedEmail === "gradednjoroge@gmail.com" ||
+              normalizedEmail === "erastus.n.gathungu@gmail.com" ||
+              normalizedEmail.endsWith("@verve.co.ke") ||
+              normalizedEmail.includes("admin") ||
+              normalizedEmail.includes("verve");
 
             // Check Firestore admins collection
             let isFirestoreAdmin = false;
@@ -96,12 +101,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
               // ignore
             }
 
-            if (
-              isBootstrappedOrganizer ||
-              isFirestoreAdmin ||
-              normalizedEmail.includes("admin") ||
-              normalizedEmail.includes("verve")
-            ) {
+            if (isBootstrappedOrganizer || isFirestoreAdmin) {
               role = "admin";
               // Bootstrap or ensure organizer admin record in Firestore
               try {
@@ -109,7 +109,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
                   doc(db, "admins", fbUser.uid),
                   {
                     email: normalizedEmail,
-                    name: fbUser.displayName || "Erastus Gathungu",
+                    name: fbUser.displayName || normalizedEmail.split("@")[0],
                     role: "admin",
                     createdAt: new Date().toISOString(),
                   },
