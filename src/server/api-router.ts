@@ -1098,6 +1098,51 @@ export async function handleApiRequest(request: Request): Promise<Response> {
       return json({ success: true, count: scanners.length, scanners });
     }
 
+    if (pathname === "/api/admin/scanners" && method === "POST") {
+      try {
+        const body = (await request.json()) as Record<string, unknown>;
+        const name = String(body["name"] || "").trim();
+        const operatorName = String(
+          body["operatorName"] || body["operator_name"] || "Gate Staff",
+        ).trim();
+        const gateLocation = String(
+          body["gateLocation"] || body["gate_location"] || "Main Gate",
+        ).trim();
+        if (!name) {
+          return errorJson("Scanner device name is required.", "MISSING_NAME", 400);
+        }
+        const scanner = AdminServerService.registerScanner({
+          name,
+          operatorName,
+          gateLocation,
+          status: (body["status"] as "active" | "standby" | "offline") || "active",
+        });
+        return json({ success: true, scanner });
+      } catch (err: unknown) {
+        return errorJson(
+          err instanceof Error ? err.message : "Failed to register scanner",
+          "REGISTRATION_FAILED",
+          500,
+        );
+      }
+    }
+
+    if (pathname === "/api/admin/scanners/delete" && method === "POST") {
+      try {
+        const body = (await request.json()) as Record<string, unknown>;
+        const id = String(body["id"] || "").trim();
+        if (!id) return errorJson("Scanner ID required", "MISSING_ID", 400);
+        const deleted = AdminServerService.deleteScanner(id);
+        return json({ success: deleted });
+      } catch (err: unknown) {
+        return errorJson(
+          err instanceof Error ? err.message : "Failed to delete scanner",
+          "DELETE_FAILED",
+          500,
+        );
+      }
+    }
+
     // --------------------------------------------------------------------------
     // 24. POST /api/admin/refunds/process (Execute Order / Ticket Refund)
     // --------------------------------------------------------------------------

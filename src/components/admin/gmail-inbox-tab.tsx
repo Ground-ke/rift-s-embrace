@@ -48,6 +48,7 @@ type EmailTemplateType = "booking_confirmation" | "event_reminder_24h" | "refund
 export function GmailInboxTab() {
   const [token, setToken] = useState<string | null>(getCachedGmailToken());
   const [isAuthenticating, setIsAuthenticating] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
   const [profile, setProfile] = useState<GmailProfile | null>(null);
   const [messages, setMessages] = useState<GmailMessageSummary[]>([]);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
@@ -99,6 +100,7 @@ export function GmailInboxTab() {
 
   const handleConnect = async () => {
     setIsAuthenticating(true);
+    setAuthError(null);
     try {
       const result = await signInWithGmail();
       setToken(result.accessToken);
@@ -106,7 +108,10 @@ export function GmailInboxTab() {
       await loadGmailData(result.accessToken);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      toast.error(`Google Sign-In failed: ${message}`);
+      setAuthError(message);
+      toast.error("Google Sign-In failed", {
+        description: message,
+      });
     } finally {
       setIsAuthenticating(false);
     }
@@ -250,26 +255,98 @@ export function GmailInboxTab() {
 
       {!token ? (
         /* Sign-in Call to Action */
-        <div className="border border-border/80 bg-card/60 p-8 text-center max-w-xl mx-auto space-y-4">
+        <div className="border border-border/80 bg-card/60 p-8 max-w-xl mx-auto space-y-4">
           <div className="w-12 h-12 rounded-full bg-amber-500/10 border border-amber-500/30 flex items-center justify-center mx-auto text-amber-400">
             <Mail className="w-6 h-6" />
           </div>
-          <div>
-            <h3 className="font-display text-lg text-bone">Connect Your Google Account</h3>
+          <div className="text-center">
+            <h3 className="font-display text-lg text-bone">
+              Connect Official Google Gmail Account
+            </h3>
             <p className="text-xs text-muted-foreground font-sans max-w-md mx-auto mt-1 leading-relaxed">
-              Authenticate with your Google Workspace account to send official ticket confirmations,
-              broadcast 24-hour event reminders, and review attendee responses with verified sender
-              headers.
+              Authenticate with your official Google Workspace / Gmail account to dispatch branded
+              ticket confirmations, broadcast gate instructions, and manage customer communications
+              directly from your verified organizer email.
             </p>
           </div>
-          <div className="pt-2">
+
+          {authError && (
+            <div className="bg-red-950/40 border border-red-500/50 p-4 text-left space-y-3">
+              <div className="flex items-start gap-2.5">
+                <AlertCircle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <div className="text-xs font-mono font-bold text-red-300 uppercase tracking-wide">
+                    Firebase Domain Authorization Required
+                  </div>
+                  <p className="text-xs text-red-200/90 font-sans leading-relaxed">
+                    Google Sign-In was blocked because your deployment domain{" "}
+                    <span className="font-mono font-bold text-amber-400">
+                      {typeof window !== "undefined"
+                        ? window.location.hostname
+                        : "verve-hauntings.vercel.app"}
+                    </span>{" "}
+                    is not yet on the Firebase Authorized Domains list.
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-background/80 border border-border p-3 space-y-2 text-[11px] font-mono text-muted-foreground">
+                <div className="text-bone font-semibold">How to fix (takes 10 seconds):</div>
+                <ol className="list-decimal list-inside space-y-1 text-bone/80 font-sans">
+                  <li>
+                    Open the Firebase Console for project{" "}
+                    <strong className="text-amber-400">verve-509008</strong>
+                  </li>
+                  <li>
+                    Navigate to{" "}
+                    <strong>Authentication &rarr; Settings &rarr; Authorized domains</strong>
+                  </li>
+                  <li>
+                    Click <strong>&quot;Add domain&quot;</strong> and paste:{" "}
+                    <code className="bg-card px-1.5 py-0.5 border border-border text-amber-400 font-mono">
+                      verve-hauntings.vercel.app
+                    </code>
+                  </li>
+                </ol>
+              </div>
+
+              <div className="flex flex-wrap gap-2 pt-1">
+                <a
+                  href="https://console.firebase.google.com/project/verve-509008/authentication/settings"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-black font-semibold text-xs rounded transition-colors"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  Open Firebase Auth Settings
+                </a>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    const host =
+                      typeof window !== "undefined"
+                        ? window.location.hostname
+                        : "verve-hauntings.vercel.app";
+                    navigator.clipboard.writeText(host);
+                    toast.success(`Copied ${host} to clipboard`);
+                  }}
+                  className="border-border text-xs text-lavender hover:text-bone h-8"
+                >
+                  Copy Domain
+                </Button>
+              </div>
+            </div>
+          )}
+
+          <div className="pt-2 text-center">
             <GoogleSignInButton
               onClick={handleConnect}
               isLoading={isAuthenticating}
               label="Sign in with Google"
             />
           </div>
-          <p className="text-[11px] font-mono text-muted-foreground">
+          <p className="text-[11px] font-mono text-muted-foreground text-center">
             Scopes requested: mail.google.com, gmail.send, gmail.readonly
           </p>
         </div>

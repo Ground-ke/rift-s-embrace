@@ -186,7 +186,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
           }
         }
 
-        // Local fallback session for instant preview
+        // Stored session check
         const stored = localStorage.getItem(STORAGE_KEY);
         if (stored) {
           try {
@@ -194,15 +194,14 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
             setUser(parsed);
           } catch {
             localStorage.removeItem(STORAGE_KEY);
-            setUser(PRESET_ACCOUNTS.admin);
+            setUser(null);
           }
         } else {
-          setUser(PRESET_ACCOUNTS.admin);
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(PRESET_ACCOUNTS.admin));
+          setUser(null);
         }
       } catch (err) {
-        console.warn("Auth fallback warning:", err);
-        setUser(PRESET_ACCOUNTS.admin);
+        console.warn("Auth initialization note:", err);
+        setUser(null);
       } finally {
         setIsLoading(false);
       }
@@ -316,6 +315,8 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
       } else if (normalizedEmail.includes("guest") || normalizedEmail.includes("customer")) {
         assignedRole = "customer";
       } else if (
+        normalizedEmail === "gradednjoroge@gmail.com" ||
+        normalizedEmail.includes("graded") ||
         normalizedEmail.includes("admin") ||
         normalizedEmail.includes("erastus") ||
         normalizedEmail.includes("verve")

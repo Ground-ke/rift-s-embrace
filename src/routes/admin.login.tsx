@@ -1,9 +1,8 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
-import { useAdminAuth, PRESET_ACCOUNTS, type UserRole } from "@/lib/auth/admin-auth-context";
+import { useAdminAuth } from "@/lib/auth/admin-auth-context";
 import { VerveIcon } from "@/components/brand/verve-logo";
 import {
-  Shield,
   KeyRound,
   Lock,
   ArrowRight,
@@ -11,7 +10,6 @@ import {
   CheckCircle2,
   AlertCircle,
   LogOut,
-  Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -44,8 +42,8 @@ function AdminLogin() {
     isAdmin,
     isLoading,
   } = useAdminAuth();
-  const [email, setEmail] = useState("erastus.n.gathungu@gmail.com");
-  const [password, setPassword] = useState("••••••••••••");
+  const [email, setEmail] = useState("gradednjoroge@gmail.com");
+  const [password, setPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isGoogleSigningIn, setIsGoogleSigningIn] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -101,17 +99,6 @@ function AdminLogin() {
       setErrorMessage("Authentication failed. Please verify credentials.");
     } finally {
       setIsSubmitting(false);
-    }
-  };
-
-  const handleQuickLogin = (targetRole: UserRole) => {
-    switchTestRole(targetRole);
-    const account = PRESET_ACCOUNTS[targetRole];
-    toast.success(`Active profile set to: ${targetRole.toUpperCase()}`, {
-      description: account.email,
-    });
-    if (targetRole === "admin") {
-      navigate({ to: "/admin" });
     }
   };
 
@@ -288,35 +275,6 @@ function AdminLogin() {
             )}
           </Button>
         </form>
-
-        {/* Quick Role Tester Profiles */}
-        <div className="mt-8 pt-6 border-t border-border/60">
-          <p className="text-[11px] font-mono text-muted-foreground uppercase tracking-wider mb-3 text-center">
-            One-Click Testing Accounts
-          </p>
-          <div className="grid grid-cols-2 gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => handleQuickLogin("admin")}
-              className="text-xs font-mono border-border bg-background/50 hover:bg-card text-lavender hover:text-bone h-9"
-            >
-              <Shield className="w-3.5 h-3.5 mr-1.5 text-amber-400" />
-              Organizer (Superadmin)
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => handleQuickLogin("scanner")}
-              className="text-xs font-mono border-border bg-background/50 hover:bg-card text-lavender hover:text-bone h-9"
-            >
-              <Shield className="w-3.5 h-3.5 mr-1.5 text-blue-400" />
-              Gate Staff (Scanner)
-            </Button>
-          </div>
-        </div>
 
         {/* Security Notice */}
         <div className="mt-6 flex items-start gap-2 text-[11px] text-muted-foreground font-mono">

@@ -15,10 +15,8 @@ import {
   Tag,
   FileText,
   LogOut,
-  Sparkles,
   RefreshCw,
   ExternalLink,
-  ChevronRight,
   TrendingUp,
   Receipt,
   Camera,
@@ -473,144 +471,63 @@ function AdminDashboardContent() {
                 </div>
               </div>
 
-              {/* Chart & Quick Actions Grid */}
-              <div className="grid gap-6 xl:grid-cols-[1.6fr_1fr]">
-                {/* Sales Velocity Chart */}
-                <div className="border border-border bg-card p-5 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h2 className="font-display text-lg text-bone flex items-center gap-2">
-                        <TrendingUp className="w-4 h-4 text-amber-400" />
-                        Hourly Ticket Sales Trend
-                      </h2>
-                      <p className="text-xs text-muted-foreground font-mono mt-0.5">
-                        Live checkout velocity on 31 October 2026
+              {/* Sales Velocity Chart */}
+              <div className="border border-border bg-card p-5 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="font-display text-lg text-bone flex items-center gap-2">
+                      <TrendingUp className="w-4 h-4 text-amber-400" />
+                      Hourly Ticket Sales Trend
+                    </h2>
+                    <p className="text-xs text-muted-foreground font-mono mt-0.5">
+                      Live checkout velocity on 31 October 2026
+                    </p>
+                  </div>
+                  <Badge variant="outline" className="border-border text-[10px] font-mono">
+                    Real-Time
+                  </Badge>
+                </div>
+
+                {metrics?.hourlySalesTrend && metrics.hourlySalesTrend.length > 0 ? (
+                  <div className="mt-6 flex h-48 items-end gap-2 border-b border-l border-border/80 px-2 pb-2">
+                    {metrics.hourlySalesTrend.map((item, idx) => {
+                      const maxSale = Math.max(
+                        ...metrics.hourlySalesTrend.map((t) => t.sales),
+                        10000,
+                      );
+                      const heightPercent = Math.max(12, Math.round((item.sales / maxSale) * 100));
+                      return (
+                        <div
+                          key={idx}
+                          className="flex-1 flex flex-col items-center gap-1 group relative"
+                        >
+                          {/* Tooltip on hover */}
+                          <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute -top-10 bg-background border border-border px-2 py-1 text-[10px] font-mono text-bone whitespace-nowrap z-10 pointer-events-none">
+                            KES {item.sales.toLocaleString()} ({item.count} tickets)
+                          </div>
+                          <div
+                            className="w-full bg-gradient-to-t from-oxblood via-oxblood/80 to-amber-500/80 hover:to-amber-400 transition-all rounded-t-none"
+                            style={{ height: `${heightPercent}%` }}
+                          />
+                          <span className="text-[9px] font-mono text-muted-foreground">
+                            {item.hour}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="mt-6 flex h-48 items-center justify-center border-b border-l border-border/80 px-4 pb-2 text-center text-xs font-mono text-muted-foreground">
+                    <div className="space-y-2">
+                      <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse mx-auto" />
+                      <p className="text-bone font-medium">Real-Time Telemetry Connected</p>
+                      <p className="text-[11px] text-muted-foreground max-w-sm">
+                        Hourly checkout velocity will graph here automatically as passes are issued
+                        and approved.
                       </p>
                     </div>
-                    <Badge variant="outline" className="border-border text-[10px] font-mono">
-                      Real-Time
-                    </Badge>
                   </div>
-
-                  {metrics?.hourlySalesTrend && metrics.hourlySalesTrend.length > 0 ? (
-                    <div className="mt-6 flex h-48 items-end gap-2 border-b border-l border-border/80 px-2 pb-2">
-                      {metrics.hourlySalesTrend.map((item, idx) => {
-                        const maxSale = Math.max(
-                          ...metrics.hourlySalesTrend.map((t) => t.sales),
-                          10000,
-                        );
-                        const heightPercent = Math.max(
-                          12,
-                          Math.round((item.sales / maxSale) * 100),
-                        );
-                        return (
-                          <div
-                            key={idx}
-                            className="flex-1 flex flex-col items-center gap-1 group relative"
-                          >
-                            {/* Tooltip on hover */}
-                            <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute -top-10 bg-background border border-border px-2 py-1 text-[10px] font-mono text-bone whitespace-nowrap z-10 pointer-events-none">
-                              KES {item.sales.toLocaleString()} ({item.count} tickets)
-                            </div>
-                            <div
-                              className="w-full bg-gradient-to-t from-oxblood via-oxblood/80 to-amber-500/80 hover:to-amber-400 transition-all rounded-t-none"
-                              style={{ height: `${heightPercent}%` }}
-                            />
-                            <span className="text-[9px] font-mono text-muted-foreground">
-                              {item.hour}
-                            </span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <div className="mt-6 flex h-48 items-center justify-center border-b border-l border-border/80 px-4 pb-2 text-center text-xs font-mono text-muted-foreground">
-                      <div className="space-y-2">
-                        <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse mx-auto" />
-                        <p className="text-bone font-medium">Real-Time Telemetry Connected</p>
-                        <p className="text-[11px] text-muted-foreground max-w-sm">
-                          Hourly checkout velocity will graph here automatically as passes are
-                          issued and approved.
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Operations Quick Shortcuts */}
-                <div className="border border-border bg-card p-5 space-y-4">
-                  <h2 className="font-display text-lg text-bone flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-amber-400" />
-                    Quick Operations
-                  </h2>
-                  <p className="text-xs text-muted-foreground font-mono">
-                    Instant access to event administrator workflows.
-                  </p>
-
-                  <div className="space-y-2 pt-2">
-                    <button
-                      onClick={() => setActiveTab("analytics")}
-                      className="w-full flex items-center justify-between p-3 border border-amber-500/30 bg-amber-950/20 hover:bg-amber-950/40 text-left transition-colors group"
-                    >
-                      <div>
-                        <div className="text-xs font-medium text-amber-300 group-hover:text-amber-200 transition-colors flex items-center gap-1.5">
-                          <BarChart3 className="w-3.5 h-3.5 text-amber-400" />
-                          <span>Live Page Analytics &amp; Telemetry</span>
-                        </div>
-                        <div className="text-[10px] text-muted-foreground font-mono">
-                          View real-time visitors, telemetry streams, and checkout funnels from
-                          Firebase
-                        </div>
-                      </div>
-                      <ChevronRight className="w-4 h-4 text-amber-400 group-hover:text-bone transition-transform group-hover:translate-x-0.5" />
-                    </button>
-
-                    <button
-                      onClick={() => setActiveTab("tickets")}
-                      className="w-full flex items-center justify-between p-3 border border-border/80 bg-background/60 hover:bg-background text-left transition-colors group"
-                    >
-                      <div>
-                        <div className="text-xs font-medium text-bone group-hover:text-amber-400 transition-colors">
-                          Manage &amp; Invalidate Passes
-                        </div>
-                        <div className="text-[10px] text-muted-foreground font-mono">
-                          Search attendees, resend emails, or revoke admission
-                        </div>
-                      </div>
-                      <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-bone transition-transform group-hover:translate-x-0.5" />
-                    </button>
-
-                    <button
-                      onClick={() => setActiveTab("promotions")}
-                      className="w-full flex items-center justify-between p-3 border border-border/80 bg-background/60 hover:bg-background text-left transition-colors group"
-                    >
-                      <div>
-                        <div className="text-xs font-medium text-bone group-hover:text-amber-400 transition-colors">
-                          Launch Promotion Code
-                        </div>
-                        <div className="text-[10px] text-muted-foreground font-mono">
-                          Configure flash sale percentage or fixed KES discounts
-                        </div>
-                      </div>
-                      <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-bone transition-transform group-hover:translate-x-0.5" />
-                    </button>
-
-                    <button
-                      onClick={() => setActiveTab("scanners")}
-                      className="w-full flex items-center justify-between p-3 border border-border/80 bg-background/60 hover:bg-background text-left transition-colors group"
-                    >
-                      <div>
-                        <div className="text-xs font-medium text-bone group-hover:text-amber-400 transition-colors">
-                          Launch Gate Scanner Terminal
-                        </div>
-                        <div className="text-[10px] text-muted-foreground font-mono">
-                          Simulate optical HMAC verification and duplicate check-in
-                        </div>
-                      </div>
-                      <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-bone transition-transform group-hover:translate-x-0.5" />
-                    </button>
-                  </div>
-                </div>
+                )}
               </div>
             </div>
           )}

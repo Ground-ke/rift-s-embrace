@@ -44,110 +44,7 @@ const promotionsStore = new Map<string, PromotionRecord>();
 const auditLogsStore: AuditLogEntry[] = [];
 const scannersStore = new Map<string, ScannerDeviceRecord>();
 
-// Seed Promotion Codes with pristine usage counts
-const defaultPromos: PromotionRecord[] = [
-  {
-    id: "promo-001",
-    code: "RIFTVIP20",
-    name: "VIP Halloween 20% Discount",
-    discountType: "percentage",
-    discountValue: 20,
-    maxUses: 100,
-    currentUses: 0,
-    expiresAt: new Date(Date.now() + 30 * 86400000).toISOString(),
-    isActive: true,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: "promo-002",
-    code: "EARLYGHOST",
-    name: "Early Bird Fixed KES 500 Off",
-    discountType: "fixed",
-    discountValue: 500,
-    maxUses: 50,
-    currentUses: 0,
-    expiresAt: new Date(Date.now() + 14 * 86400000).toISOString(),
-    isActive: true,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: "promo-003",
-    code: "COVEN50",
-    name: "Rift Coven Group 50% Flash Sale",
-    discountType: "percentage",
-    discountValue: 50,
-    maxUses: 20,
-    currentUses: 0,
-    expiresAt: new Date(Date.now() + 7 * 86400000).toISOString(),
-    isActive: true,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: "promo-004",
-    code: "SPOOKY10",
-    name: "Community 10% Off Pass",
-    discountType: "percentage",
-    discountValue: 10,
-    maxUses: 200,
-    currentUses: 0,
-    expiresAt: new Date(Date.now() + 45 * 86400000).toISOString(),
-    isActive: true,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-];
-
-defaultPromos.forEach((p) => promotionsStore.set(p.code.toUpperCase(), p));
-
-// Scanner Fleet Terminals (pristine scan counts synced with gate activity)
-const defaultScanners: ScannerDeviceRecord[] = [
-  {
-    id: "scan-001",
-    name: "Gate Alpha Primary",
-    operatorName: "Gate Security Staff",
-    gateLocation: "Main Top Cliff Entrance (Highway Gate)",
-    status: "active",
-    scansCount: 0,
-    lastScanAt: null,
-  },
-  {
-    id: "scan-002",
-    name: "VIP Portal Handheld",
-    operatorName: "VIP Security Team",
-    gateLocation: "Hellfire VIP Red Carpet Chute",
-    status: "active",
-    scansCount: 0,
-    lastScanAt: null,
-  },
-  {
-    id: "scan-003",
-    name: "Gate Beta Backup",
-    operatorName: "West Perimeter Team",
-    gateLocation: "West Amphitheater Service Entry",
-    status: "standby",
-    scansCount: 0,
-    lastScanAt: null,
-  },
-];
-defaultScanners.forEach((s) => scannersStore.set(s.id, s));
-
-// Seed initial audit log entries
-auditLogsStore.push({
-  id: "aud-001",
-  actorId: "admin-erastus",
-  actorEmail: "erastus.n.gathungu@gmail.com",
-  actorRole: "admin",
-  action: "system.initialized",
-  targetTable: "events",
-  targetId: "hauntings-of-the-rift-2026",
-  metadata: { message: "Production Admin & Access Control Gateway activated" },
-  ipAddress: "127.0.0.1",
-  createdAt: new Date(Date.now() - 3600000).toISOString(),
-});
-
+// Stores start pristine with zero hallucinated entries. Organizers register real codes and checkpoints dynamically.
 export class AdminServerService {
   /**
    * Record an authoritative audit log entry
@@ -644,5 +541,35 @@ export class AdminServerService {
    */
   static getScanners(): ScannerDeviceRecord[] {
     return Array.from(scannersStore.values());
+  }
+
+  /**
+   * Register a new gate scanner device
+   */
+  static registerScanner(params: {
+    name: string;
+    operatorName: string;
+    gateLocation: string;
+    status?: "active" | "standby" | "offline";
+  }): ScannerDeviceRecord {
+    const id = `scan-${Date.now().toString(36)}`;
+    const record: ScannerDeviceRecord = {
+      id,
+      name: params.name.trim(),
+      operatorName: params.operatorName.trim(),
+      gateLocation: params.gateLocation.trim(),
+      status: params.status || "active",
+      scansCount: 0,
+      lastScanAt: null,
+    };
+    scannersStore.set(id, record);
+    return record;
+  }
+
+  /**
+   * Delete a scanner device
+   */
+  static deleteScanner(id: string): boolean {
+    return scannersStore.delete(id);
   }
 }

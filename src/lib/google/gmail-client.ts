@@ -67,6 +67,21 @@ export async function signInWithGmail(): Promise<{ user: User; accessToken: stri
 
     cachedAccessToken = credential.accessToken;
     return { user: result.user, accessToken: cachedAccessToken };
+  } catch (err: unknown) {
+    const code =
+      typeof err === "object" && err !== null && "code" in err
+        ? String((err as { code: unknown }).code)
+        : "";
+    if (code === "auth/unauthorized-domain") {
+      throw new Error(
+        "Firebase Auth unauthorized-domain: The domain '" +
+          (typeof window !== "undefined"
+            ? window.location.hostname
+            : "verve-hauntings.vercel.app") +
+          "' is not registered in Firebase Console > Authentication > Settings > Authorized Domains.",
+      );
+    }
+    throw err;
   } finally {
     isSigningIn = false;
   }

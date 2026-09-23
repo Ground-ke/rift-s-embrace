@@ -1,17 +1,9 @@
 import { ReactNode, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { useAdminAuth, PRESET_ACCOUNTS } from "../../lib/auth/admin-auth-context";
+import { useAdminAuth } from "../../lib/auth/admin-auth-context";
 import { VerveIcon } from "../brand/verve-logo";
 import { GoogleSignInButton } from "../brand/google-sign-in-button";
-import {
-  ShieldAlert,
-  LogIn,
-  ArrowLeft,
-  RefreshCw,
-  UserCheck,
-  AlertCircle,
-  ShieldCheck,
-} from "lucide-react";
+import { ShieldAlert, LogIn, ArrowLeft, RefreshCw, AlertCircle } from "lucide-react";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
 import { toast } from "sonner";
@@ -21,16 +13,7 @@ interface ProtectedAdminRouteProps {
 }
 
 export function ProtectedAdminRoute({ children }: ProtectedAdminRouteProps) {
-  const {
-    user,
-    role,
-    isLoading,
-    isAuthenticated,
-    isAdmin,
-    switchTestRole,
-    signInWithGoogle,
-    signIn,
-  } = useAdminAuth();
+  const { user, role, isLoading, isAuthenticated, isAdmin, signInWithGoogle } = useAdminAuth();
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
 
@@ -50,22 +33,6 @@ export function ProtectedAdminRoute({ children }: ProtectedAdminRouteProps) {
       setAuthError(err instanceof Error ? err.message : "Google authentication error.");
     } finally {
       setIsGoogleLoading(false);
-    }
-  };
-
-  const handleOrganizerSignIn = async (email: string) => {
-    setAuthError(null);
-    try {
-      const res = await signIn(email, "admin");
-      if (res.success) {
-        toast.success("Welcome, Lead Organizer", {
-          description: `Logged in as ${email}`,
-        });
-      } else {
-        setAuthError(res.message || "Failed to sign in.");
-      }
-    } catch {
-      setAuthError("Could not sign in with organizer credentials.");
     }
   };
 
@@ -131,37 +98,19 @@ export function ProtectedAdminRoute({ children }: ProtectedAdminRouteProps) {
               className="w-full justify-center h-11"
             />
 
-            <div className="relative py-1">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t border-border" />
-              </div>
-              <div className="relative flex justify-center text-[10px] uppercase font-mono">
-                <span className="bg-card px-2 text-muted-foreground">
-                  Or Organizer Direct Entry
-                </span>
-              </div>
+            <div className="pt-2">
+              <Link to="/admin/login" className="block">
+                <Button
+                  variant="outline"
+                  className="w-full border-border bg-background/60 hover:bg-background text-lavender hover:text-bone text-xs font-mono h-11"
+                >
+                  <LogIn className="w-4 h-4 mr-2 text-amber-400" />
+                  Sign In with Organizer Credentials
+                </Button>
+              </Link>
             </div>
 
-            {/* Direct 1-Click Entry for Organizer */}
-            <Button
-              onClick={() => handleOrganizerSignIn("gradednjoroge@gmail.com")}
-              className="w-full bg-oxblood text-bone hover:bg-oxblood/90 border border-amber-500/40 text-xs font-mono h-10"
-            >
-              <ShieldCheck className="w-4 h-4 mr-2 text-amber-400" />
-              Enter as gradednjoroge@gmail.com
-            </Button>
-
-            <Link to="/admin/login" className="block">
-              <Button
-                variant="outline"
-                className="w-full border-border text-lavender hover:text-bone text-xs font-mono h-9"
-              >
-                <LogIn className="w-3.5 h-3.5 mr-2" />
-                Custom Credentials Login
-              </Button>
-            </Link>
-
-            <Link to="/" className="block">
+            <Link to="/" className="block pt-1">
               <Button
                 variant="ghost"
                 className="w-full text-muted-foreground hover:text-bone text-xs"
@@ -207,36 +156,11 @@ export function ProtectedAdminRoute({ children }: ProtectedAdminRouteProps) {
           <p className="text-sm text-lavender/80 mt-3 font-sans leading-relaxed">
             Your account (<span className="text-bone font-mono">{user.email}</span>) holds the{" "}
             <span className="text-amber-400 font-bold uppercase font-mono">{role}</span> role, but
-            this area strictly requires elevated{" "}
+            this area strictly requires verified{" "}
             <span className="text-red-400 font-bold font-mono">ADMIN</span> permissions.
           </p>
 
-          <div className="my-6 border-t border-b border-border/60 py-4 bg-background/40 px-4 text-left">
-            <p className="text-xs text-muted-foreground uppercase font-mono tracking-wider mb-2">
-              Instant Sandbox Role Switcher (Evaluation Only):
-            </p>
-            <div className="flex flex-wrap gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                className="bg-amber-950/30 border-amber-500/40 text-amber-300 hover:bg-amber-900/50 text-xs font-mono"
-                onClick={() => switchTestRole("admin")}
-              >
-                <UserCheck className="w-3.5 h-3.5 mr-1.5" />
-                Switch to Admin Role
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                className="bg-card border-border text-muted-foreground hover:text-bone text-xs font-mono"
-                onClick={() => switchTestRole("scanner")}
-              >
-                Switch to Scanner
-              </Button>
-            </div>
-          </div>
-
-          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+          <div className="flex flex-col sm:flex-row gap-3 justify-center mt-6">
             <Link to="/admin/login">
               <Button className="w-full sm:w-auto bg-oxblood text-bone hover:bg-oxblood/90 border border-amber-500/30 text-xs font-sans">
                 <RefreshCw className="w-3.5 h-3.5 mr-1.5" />

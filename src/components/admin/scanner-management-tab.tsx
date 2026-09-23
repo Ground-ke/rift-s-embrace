@@ -9,10 +9,22 @@ import {
   Search,
   Scan,
   Radio,
+  Plus,
+  Trash2,
+  Camera,
 } from "lucide-react";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
+import { Label } from "../ui/label";
 import { Badge } from "../ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "../ui/dialog";
 import { toast } from "sonner";
 import { useAdminAuth } from "../../lib/auth/admin-auth-context";
 
@@ -30,6 +42,13 @@ export function ScannerManagementTab() {
   const { user } = useAdminAuth();
   const [scanners, setScanners] = useState<ScannerDevice[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  // New Terminal Modal State
+  const [isRegisterOpen, setIsRegisterOpen] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newGateLocation, setNewGateLocation] = useState("Main Entrance");
+  const [newOperator, setNewOperator] = useState(user?.name || "Gate Staff");
+  const [isRegistering, setIsRegistering] = useState(false);
 
   // Scanner Simulator State
   const [scanCode, setScanCode] = useState("");
@@ -65,6 +84,57 @@ export function ScannerManagementTab() {
   useEffect(() => {
     fetchScanners();
   }, []);
+
+  const handleRegisterScanner = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newName.trim()) return;
+    setIsRegistering(true);
+    try {
+      const res = await fetch("/api/admin/scanners", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: newName.trim(),
+          gateLocation: newGateLocation.trim(),
+          operatorName: newOperator.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success("Gate Checkpoint Registered", {
+          description: data.scanner.name,
+        });
+        setIsRegisterOpen(false);
+        setNewName("");
+        fetchScanners();
+      } else {
+        toast.error(data.message || "Failed to register checkpoint.");
+      }
+    } catch {
+      toast.error("Network error while registering scanner.");
+    } finally {
+      setIsRegistering(false);
+    }
+  };
+
+  const handleDeleteScanner = async (id: string, name: string) => {
+    try {
+      const res = await fetch("/api/admin/scanners/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success(`Removed checkpoint: ${name}`);
+        setScanners((prev) => prev.filter((s) => s.id !== id));
+      } else {
+        toast.error("Failed to remove checkpoint.");
+      }
+    } catch {
+      toast.error("Network error removing scanner.");
+    }
+  };
 
   const handleSimulateScan = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -115,24 +185,35 @@ export function ScannerManagementTab() {
           <div className="flex items-center gap-2">
             <QrCode className="w-5 h-5 text-amber-400" />
             <h2 className="font-display text-xl text-bone tracking-wide">
-              Gate Scanners &amp; Admission Checkpoint Fleet
+              Gate Scanners &amp; Admission Checkpoints
             </h2>
           </div>
           <p className="text-xs text-muted-foreground font-mono mt-1">
-            Real-time optical scanners deployed across Top Cliff Lounge venue ingress perimeters.
+            Real-time optical scanners and admission stations deployed across venue perimeters.
           </p>
         </div>
 
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={fetchScanners}
-          disabled={isLoading}
-          className="border-border text-lavender hover:text-bone text-xs h-9"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${isLoading ? "animate-spin" : ""}`} />
-          Refresh Fleet
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setIsRegisterOpen(true)}
+            className="border-amber-500/50 bg-amber-950/20 text-amber-300 hover:bg-amber-950/40 text-xs h-9"
+          >
+            <Plus className="w-3.5 h-3.5 mr-1.5" />
+            Register Checkpoint
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={fetchScanners}
+            disabled={isLoading}
+            className="border-border text-lavender hover:text-bone text-xs h-9"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${isLoading ? "animate-spin" : ""}`} />
+            Refresh
+          </Button>
+        </div>
       </div>
 
       {/* Simulator Terminal & Fleet Grid */}
@@ -141,10 +222,11 @@ export function ScannerManagementTab() {
         <div className="lg:col-span-1 border border-amber-500/40 bg-card/90 p-5 space-y-4 shadow-xl">
           <div className="flex items-center gap-2 pb-3 border-b border-border">
             <Scan className="w-4 h-4 text-amber-400" />
-            <h3 className="font-display text-lg text-bone">Live Gate Scanner Simulator</h3>
+            <h3 className="font-display text-lg text-bone">Live Gate Scanner Terminal</h3>
           </div>
           <p className="text-xs text-muted-foreground font-sans">
-            Test ticket validation, HMAC signature inspection, and duplicate check-in detection.
+            Validate ticket barcodes, check cryptographic HMAC signatures, and detect duplicate
+            check-ins.
           </p>
 
           <form onSubmit={handleSimulateScan} className="space-y-3">
@@ -166,7 +248,7 @@ export function ScannerManagementTab() {
               className="w-full bg-oxblood text-bone hover:bg-oxblood/90 border border-amber-500/30 text-xs font-sans"
             >
               {isScanning ? (
-                "Verifying Cryptographic HMAC..."
+                "Verifying Cryptographic Signature..."
               ) : (
                 <>
                   <ShieldCheck className="w-4 h-4 mr-2" />
@@ -183,8 +265,9 @@ export function ScannerManagementTab() {
             </span>
             <a
               href="/admin/scan"
-              className="text-amber-400 hover:text-amber-300 underline flex items-center gap-1"
+              className="text-amber-400 hover:text-amber-300 underline flex items-center gap-1 font-medium"
             >
+              <Camera className="w-3.5 h-3.5 mr-0.5" />
               Open Camera Scanner &rarr;
             </a>
           </div>
@@ -232,54 +315,177 @@ export function ScannerManagementTab() {
 
         {/* Scanner Device Fleet */}
         <div className="lg:col-span-2 space-y-4">
-          <h3 className="font-display text-lg text-bone flex items-center gap-2">
-            <Smartphone className="w-4 h-4 text-amber-400" />
-            Active Handheld Terminals ({scanners.length})
-          </h3>
+          <div className="flex items-center justify-between">
+            <h3 className="font-display text-lg text-bone flex items-center gap-2">
+              <Smartphone className="w-4 h-4 text-amber-400" />
+              Registered Checkpoints ({scanners.length})
+            </h3>
+            <a
+              href="/admin/scan"
+              className="text-xs font-mono text-amber-400 hover:text-amber-300 flex items-center gap-1"
+            >
+              <Camera className="w-3 h-3" />
+              Direct Camera Scanner Portal
+            </a>
+          </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {scanners.map((dev) => (
-              <div
-                key={dev.id}
-                className="border border-border bg-card p-4 space-y-3 relative overflow-hidden"
-              >
-                <div className="flex items-start justify-between">
-                  <div>
-                    <h4 className="font-display text-base text-bone font-medium">{dev.name}</h4>
-                    <span className="text-[11px] text-muted-foreground font-mono block">
-                      Operator: {dev.operatorName}
-                    </span>
+          {scanners.length === 0 ? (
+            <div className="border border-border/80 bg-card p-8 text-center space-y-3">
+              <div className="w-12 h-12 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center mx-auto">
+                <Smartphone className="w-6 h-6" />
+              </div>
+              <h4 className="font-display text-base text-bone">
+                No External Scanner Devices Registered
+              </h4>
+              <p className="text-xs text-muted-foreground font-sans max-w-md mx-auto">
+                Staff can use the optical camera scanner directly on any mobile browser, or register
+                dedicated checkpoint terminals for multi-gate tracking.
+              </p>
+              <div className="pt-2 flex flex-wrap justify-center gap-3">
+                <Button
+                  size="sm"
+                  onClick={() => setIsRegisterOpen(true)}
+                  className="bg-oxblood text-bone hover:bg-oxblood/90 border border-amber-500/30 text-xs font-mono"
+                >
+                  <Plus className="w-3.5 h-3.5 mr-1.5" />
+                  Register First Gate Checkpoint
+                </Button>
+                <a href="/admin/scan">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-border text-lavender hover:text-bone text-xs font-mono"
+                  >
+                    <Camera className="w-3.5 h-3.5 mr-1.5" />
+                    Open Mobile Camera Scanner
+                  </Button>
+                </a>
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {scanners.map((dev) => (
+                <div
+                  key={dev.id}
+                  className="border border-border bg-card p-4 space-y-3 relative overflow-hidden group"
+                >
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <h4 className="font-display text-base text-bone font-medium">{dev.name}</h4>
+                      <span className="text-[11px] text-muted-foreground font-mono block">
+                        Operator: {dev.operatorName}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      <Badge
+                        variant="outline"
+                        className={`font-mono text-[10px] uppercase tracking-wider ${
+                          dev.status === "active"
+                            ? "border-green-500/60 bg-green-950/40 text-green-300"
+                            : "border-border text-muted-foreground"
+                        }`}
+                      >
+                        <Radio
+                          className={`w-2.5 h-2.5 mr-1 ${dev.status === "active" ? "text-green-400 animate-pulse" : ""}`}
+                        />
+                        {dev.status}
+                      </Badge>
+                      <button
+                        onClick={() => handleDeleteScanner(dev.id, dev.name)}
+                        className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-red-400 p-1"
+                        title="Remove Checkpoint"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
 
-                  <Badge
-                    variant="outline"
-                    className={`font-mono text-[10px] uppercase tracking-wider ${
-                      dev.status === "active"
-                        ? "border-green-500/60 bg-green-950/40 text-green-300"
-                        : "border-border text-muted-foreground"
-                    }`}
-                  >
-                    <Radio
-                      className={`w-2.5 h-2.5 mr-1 ${dev.status === "active" ? "text-green-400 animate-pulse" : ""}`}
-                    />
-                    {dev.status}
-                  </Badge>
-                </div>
+                  <div className="text-xs text-lavender font-mono bg-background/60 p-2.5 border border-border/60">
+                    <div className="text-muted-foreground text-[10px] uppercase">Location:</div>
+                    <div className="text-bone">{dev.gateLocation}</div>
+                  </div>
 
-                <div className="text-xs text-lavender font-mono bg-background/60 p-2.5 border border-border/60">
-                  <div className="text-muted-foreground text-[10px] uppercase">Location:</div>
-                  <div className="text-bone">{dev.gateLocation}</div>
+                  <div className="flex items-center justify-between text-xs font-mono pt-2 border-t border-border/60">
+                    <span className="text-muted-foreground">Scans Processed:</span>
+                    <span className="text-amber-400 font-bold text-sm">
+                      {dev.scansCount} Passes
+                    </span>
+                  </div>
                 </div>
-
-                <div className="flex items-center justify-between text-xs font-mono pt-2 border-t border-border/60">
-                  <span className="text-muted-foreground">Scans Processed:</span>
-                  <span className="text-amber-400 font-bold text-sm">{dev.scansCount} Passes</span>
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
+
+      {/* REGISTER CHECKPOINT DIALOG */}
+      <Dialog open={isRegisterOpen} onOpenChange={setIsRegisterOpen}>
+        <DialogContent className="bg-card border-lavender/30 text-bone max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-display text-xl text-bone flex items-center gap-2">
+              <Plus className="w-5 h-5 text-amber-400" />
+              Register Gate Checkpoint
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Add an admission terminal station or gate entrance to monitor ingress statistics.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleRegisterScanner} className="space-y-4 my-2">
+            <div className="space-y-1">
+              <Label className="text-xs font-mono text-lavender uppercase">Checkpoint Name *</Label>
+              <Input
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                placeholder="e.g. Main Entrance Terminal 1"
+                required
+                className="bg-background border-border text-bone text-sm"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs font-mono text-lavender uppercase">Gate Location</Label>
+              <Input
+                value={newGateLocation}
+                onChange={(e) => setNewGateLocation(e.target.value)}
+                placeholder="e.g. Highway Entrance, VIP Lounge Chute"
+                className="bg-background border-border text-bone text-sm"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs font-mono text-lavender uppercase">
+                Assigned Staff / Operator
+              </Label>
+              <Input
+                value={newOperator}
+                onChange={(e) => setNewOperator(e.target.value)}
+                placeholder="e.g. Lead Gate Officer"
+                className="bg-background border-border text-bone text-sm"
+              />
+            </div>
+
+            <DialogFooter className="pt-2">
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setIsRegisterOpen(false)}
+                className="text-xs text-muted-foreground hover:text-bone"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={isRegistering || !newName.trim()}
+                className="bg-oxblood text-bone hover:bg-oxblood/90 border border-amber-500/30 text-xs font-mono"
+              >
+                {isRegistering ? "Registering..." : "Add Checkpoint"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
