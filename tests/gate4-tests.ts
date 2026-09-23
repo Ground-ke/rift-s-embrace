@@ -332,7 +332,7 @@ async function runGate4TestSuite() {
           ResultDesc: "The service request is processed successfully.",
           CallbackMetadata: {
             Item: [
-              { Name: "Amount", Value: 3600 },
+              { Name: "Amount", Value: 3200 },
               { Name: "MpesaReceiptNumber", Value: "QHD_HTTP_SUCCESS_1" },
               { Name: "PhoneNumber", Value: 254799888777 },
             ],

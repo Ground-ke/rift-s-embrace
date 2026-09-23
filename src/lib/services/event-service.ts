@@ -20,9 +20,9 @@ export const DEFAULT_EVENT: EventRecord = {
   tagline: "Presented by Verve & Co.",
   description:
     "A premier Halloween nightlife experience in Nakuru. High-energy electronic atmosphere, curated signature cocktails, and immersive soundscapes.",
-  venue_name: "Top Cliff Lounge",
-  venue_address: "Nakuru-Nairobi Highway, Free Area, Nakuru",
-  venue_directions: "Along Nakuru-Nairobi Highway, Free Area, Nakuru",
+  venue_name: "Top Cliff Lodge",
+  venue_address: "Highway, Top Cliff Lodge, along, Nairobi",
+  venue_directions: "Highway, Top Cliff Lodge, along, Nairobi",
   event_date: "2026-10-31",
   start_time: "16:00:00",
   end_time: null,
@@ -86,7 +86,7 @@ export const DEFAULT_TICKET_TYPES: TicketTypeRecord[] = [
     description:
       "Squad bundle admitting four guests. Fast-track entry together with dedicated group wristbands.",
     admits_count: 4,
-    price_kes: 3600,
+    price_kes: 3200,
     total_inventory: null, // NOT INVENTED
     reserved_count: 0,
     sold_count: 0,

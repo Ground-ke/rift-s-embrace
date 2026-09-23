@@ -195,7 +195,7 @@ const defaultTicketTypes: Record<string, TicketTypeConfig> = {
     slug: "group-of-four",
     name: "Group of Four",
     admitsCount: 4,
-    priceKes: 3600,
+    priceKes: 3200,
     totalInventory: null,
     soldCount: 0,
     purchaseLimit: null,

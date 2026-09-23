@@ -109,6 +109,21 @@ function AdminDashboardContent() {
     }
   };
 
+  // Request camera access only after opening the dashboard so it's ready for gate scanning
+  useEffect(() => {
+    if (typeof navigator !== "undefined" && navigator.mediaDevices?.getUserMedia) {
+      navigator.mediaDevices
+        .getUserMedia({ video: true })
+        .then((stream) => {
+          // Immediately release stream tracks once permission is obtained so camera indicator turns off
+          stream.getTracks().forEach((track) => track.stop());
+        })
+        .catch((err) => {
+          console.log("Camera access requested on dashboard:", err?.message || err);
+        });
+    }
+  }, []);
+
   useEffect(() => {
     fetchMetrics();
 
@@ -369,7 +384,7 @@ function AdminDashboardContent() {
                 </span>
               </div>
               <p className="text-[10px] text-muted-foreground font-mono truncate hidden sm:block">
-                Top Cliff Lounge, Nakuru · Official Organizer Console
+                Top Cliff Lodge, Nakuru · Official Organizer Console
               </p>
             </div>
           </div>

@@ -90,7 +90,7 @@ const options: TicketOption[] = [
   {
     id: "group-of-four",
     name: "Group of Four",
-    price: 3600,
+    price: 3200,
     admitsCount: 4,
     description: "Admits 4 guests together (1 QR bundle)",
   },
@@ -1429,7 +1429,7 @@ function Checkout() {
             </p>
             <div className="mt-4 space-y-1 text-sm text-muted-foreground border-y border-border/80 py-3">
               <p>31 October 2026 · 4:00 PM</p>
-              <p>Top Cliff Lounge, Nakuru</p>
+              <p>Top Cliff Lodge, Nakuru</p>
               <p>Dress Code: Wickedly Fabulous</p>
               <p>Age: 18+ Strictly</p>
             </div>

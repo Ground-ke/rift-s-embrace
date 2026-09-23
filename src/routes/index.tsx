@@ -36,7 +36,7 @@ export const Route = createFileRoute("/")({
       {
         name: "description",
         content:
-          "Hauntings of the Rift at Top Cliff Lounge, Nakuru. 31 October 2026 from 4 PM. Presented by Verve & Co. Tickets from KES 1,000.",
+          "Hauntings of the Rift at Top Cliff Lodge, Nakuru. 31 October 2026 from 4 PM. Presented by Verve & Co. Tickets from KES 1,000.",
       },
       { property: "og:title", content: "Hauntings of the Rift — Verve & Co." },
       {
@@ -54,7 +54,7 @@ export const Route = createFileRoute("/")({
 const tickets: Ticket[] = [
   { name: "Early Bird", price: 1000, people: "Single entry", note: "Limited release pricing" },
   { name: "Couple", price: 1800, people: "Entry for two", note: "Arrive together" },
-  { name: "Group of Four", price: 3600, people: "Entry for four", note: "Bring the whole crew" },
+  { name: "Group of Four", price: 3200, people: "Entry for four", note: "Bring the whole crew" },
 ];
 
 const nav = [
@@ -65,7 +65,7 @@ const nav = [
 ];
 const heroFacts: Array<[string, LucideIcon]> = [
   ["31 October 2026", Clock3],
-  ["Top Cliff Lounge · Nakuru", MapPin],
+  ["Top Cliff Lodge · Nakuru", MapPin],
   ["4 PM — late", Moon],
 ];
 const experiences: Array<[string, string, string, LucideIcon]> = [
@@ -82,11 +82,11 @@ const experiences: Array<[string, string, string, LucideIcon]> = [
 const faqs: Array<[string, string]> = [
   ["Who can attend?", "This is an 18+ event."],
   ["What is the dress code?", "Wickedly Fabulous."],
-  ["Where is the event?", "Top Cliff Lounge, Nakuru-Nairobi Highway, Free Area, Nakuru."],
+  ["Where is the event?", "Top Cliff Lodge, Highway, Top Cliff Lodge, along, Nairobi."],
   ["What time does it start?", "Doors open at 4 PM and the event continues till late."],
   [
     "How much are tickets?",
-    "Early Bird is KES 1,000, Couple is KES 1,800, and Group of Four is KES 3,600.",
+    "Early Bird is KES 1,000, Couple is KES 1,800, and Group of Four is KES 3,200.",
   ],
   [
     "How do I buy a ticket?",
@@ -399,13 +399,13 @@ function Index() {
             <p className="mt-12 text-xs font-bold uppercase tracking-[.3em] text-lavender">
               The gathering place
             </p>
-            <h2 className="mt-3 text-5xl text-bone">Top Cliff Lounge</h2>
+            <h2 className="mt-3 text-5xl text-bone">Top Cliff Lodge</h2>
             <p className="mt-4 max-w-md text-lg text-muted-foreground">
-              Nakuru-Nairobi Highway, Free Area, Nakuru
+              Highway, Top Cliff Lodge, along, Nairobi
             </p>
             <Button asChild variant="event" size="xl" className="mt-8">
               <a
-                href="https://www.google.com/maps/search/?api=1&query=Top+Cliff+Lounge+Nakuru"
+                href="https://www.google.com/maps/search/?api=1&query=Top+Cliff+Lodge+Nairobi"
                 target="_blank"
                 rel="noreferrer"
               >
@@ -413,21 +413,18 @@ function Index() {
               </a>
             </Button>
           </div>
-          <div className="relative min-h-72 overflow-hidden border-t border-border lg:border-l lg:border-t-0">
-            <img
-              src={heroImage}
-              alt="Night view evoking Top Cliff Lounge event setting"
+          <div className="relative min-h-[380px] w-full overflow-hidden border-t border-border lg:border-l lg:border-t-0 bg-card">
+            <iframe
+              src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d17142.074061299183!2d36.14178365044336!3d-0.29953316327871576!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x18299230cc8c9a8f%3A0xaee91de6af909e81!2sTop%20Cliff%20Lodge!5e0!3m2!1sen!2ske!4v1790188374041!5m2!1sen!2ske"
+              width="100%"
+              height="100%"
+              className="absolute inset-0 size-full border-0 min-h-[380px]"
+              style={{ border: 0 }}
+              allowFullScreen
               loading="lazy"
-              width={1536}
-              height={1024}
-              className="absolute inset-0 size-full object-cover opacity-65 grayscale"
+              referrerPolicy="strict-origin-when-cross-origin"
+              title="Top Cliff Lodge Location Map"
             />
-            <div className="absolute inset-0 bg-oxblood/30" />
-            <div className="absolute bottom-6 left-6 border-l-2 border-lavender pl-4 text-sm uppercase tracking-widest text-bone">
-              Nakuru, Kenya
-              <br />
-              <span className="text-muted-foreground">0.3031° S · 36.0800° E</span>
-            </div>
           </div>
         </div>
       </section>
@@ -457,7 +454,7 @@ function Index() {
 
       <section className="poster-grain px-4 py-24 text-center sm:px-6 lg:py-36">
         <p className="text-xs font-bold uppercase tracking-[.35em] text-lavender">
-          31 October 2026 · Top Cliff Lounge
+          31 October 2026 · Top Cliff Lodge
         </p>
         <h2 className="mx-auto mt-4 max-w-5xl text-6xl leading-[.85] text-bone sm:text-8xl">
           Nakuru. Are you ready?
@@ -496,7 +493,7 @@ function Index() {
             <span>·</span>
             <span>31 October 2026</span>
             <span>·</span>
-            <span>Top Cliff Lounge, Nakuru</span>
+            <span>Top Cliff Lodge, Nakuru</span>
             <span>·</span>
             <span className="border border-border/80 px-1.5 py-0.5 font-mono text-[10px]">18+</span>
           </div>

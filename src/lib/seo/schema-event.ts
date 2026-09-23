@@ -16,7 +16,7 @@ export function generateEventJsonLd(options: EventSchemaOptions = {}) {
     "@type": "Event",
     name: "Hauntings of the Rift — Halloween Nightlife 2026",
     description:
-      "A premium Halloween nightlife and sensory masquerade experience in Nakuru, presented by Verve & Co. Featuring spine-chilling immersive audio, live DJs, and curated cocktail activations at Top Cliff Lounge.",
+      "A premium Halloween nightlife and sensory masquerade experience in Nakuru, presented by Verve & Co. Featuring spine-chilling immersive audio, live DJs, and curated cocktail activations at Top Cliff Lodge.",
     image: [posterImage],
     startDate: "2026-10-31T16:00:00+03:00",
     endDate: "2026-11-01T04:00:00+03:00",
@@ -24,11 +24,11 @@ export function generateEventJsonLd(options: EventSchemaOptions = {}) {
     eventAttendanceMode: "https://schema.org/OfflineEventAttendanceMode",
     location: {
       "@type": "Place",
-      name: "Top Cliff Lounge",
+      name: "Top Cliff Lodge",
       address: {
         "@type": "PostalAddress",
-        streetAddress: "Nakuru-Nairobi Highway, Free Area",
-        addressLocality: "Nakuru",
+        streetAddress: "Highway, Top Cliff Lodge, along",
+        addressLocality: "Nairobi",
         addressRegion: "Rift Valley",
         postalCode: "20100",
         addressCountry: "KE",
