@@ -187,10 +187,30 @@ function MobileTicketBar({ visible }: { visible: boolean }) {
   );
 }
 
+interface PublicPromotion {
+  id: string;
+  code: string;
+  name?: string;
+  discountType: "percentage" | "fixed";
+  discountValue: number;
+}
+
 function Index() {
   const heroRef = useRef<HTMLElement>(null);
   const [pastHero, setPastHero] = useState(false);
+  const [promotions, setPromotions] = useState<PublicPromotion[]>([]);
   const eventJsonLd = generateEventJsonLd();
+
+  useEffect(() => {
+    fetch("/api/promotions")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.success && Array.isArray(data.promotions)) {
+          setPromotions(data.promotions);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     const observer = new IntersectionObserver(([entry]) => setPastHero(!entry?.isIntersecting), {
@@ -342,27 +362,36 @@ function Index() {
               <TicketCard key={ticket.name} ticket={ticket} featured={i === 2} />
             ))}
           </div>
-          <div className="mt-8 border border-dashed border-lavender/40 bg-lavender/5 p-5">
-            <div className="grid gap-4 sm:grid-cols-[1fr_auto] sm:items-center">
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="border border-lavender px-2 py-1 text-xs font-bold uppercase text-lavender">
-                    Promotion system preview
-                  </span>
+          {promotions.length > 0 && (
+            <div className="mt-8 border border-lavender/40 bg-lavender/10 p-5">
+              <div className="grid gap-4 sm:grid-cols-[1fr_auto] sm:items-center">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="border border-lavender px-2 py-1 text-xs font-bold uppercase text-lavender">
+                      Active Promotion
+                    </span>
+                    <span className="font-mono text-xs text-amber-400">
+                      Code: {promotions[0].code}
+                    </span>
+                  </div>
+                  <h3 className="mt-3 text-2xl text-bone">
+                    {promotions[0].discountType === "percentage"
+                      ? `${promotions[0].discountValue}% OFF`
+                      : `KES ${promotions[0].discountValue.toLocaleString()} OFF`}
+                    {promotions[0].name ? ` — ${promotions[0].name}` : " Special Offer"}
+                  </h3>
+                  <p className="mt-1 text-muted-foreground">
+                    Use code at checkout to claim your promotional discount.
+                  </p>
                 </div>
-                <h3 className="mt-3 text-2xl text-bone">
-                  Flash-sale module ready for real inventory data
-                </h3>
-                <p className="mt-1 text-muted-foreground">
-                  Sale price, availability, countdown and remaining-ticket progress stay hidden
-                  until organizers publish verified promotion data.
-                </p>
+                <Button asChild variant="event" size="xl">
+                  <Link to={`/checkout?promo=${encodeURIComponent(promotions[0].code)}`}>
+                    Claim offer <ArrowRight />
+                  </Link>
+                </Button>
               </div>
-              <Button variant="spectral" size="xl" disabled>
-                Inactive
-              </Button>
             </div>
-          </div>
+          )}
         </div>
       </section>
 

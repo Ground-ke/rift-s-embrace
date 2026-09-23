@@ -1,49 +1,90 @@
-<svg viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <rect width="160" height="160" rx="32" fill="#0D070B" />
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" width="100%" height="100%">
   <defs>
-    <linearGradient id="favicon-sun-grad" x1="20" y1="20" x2="140" y2="140" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stopColor="#FFC843" />
-      <stop offset="100%" stopColor="#FFA834" />
+    <!-- Rich Nocturnal Oxblood/Obsidian Base Gradient -->
+    <linearGradient id="favicon-bg" x1="16" y1="16" x2="144" y2="144" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stopColor="#1E0B16" />
+      <stop offset="45%" stopColor="#12060D" />
+      <stop offset="100%" stopColor="#070205" />
     </linearGradient>
+
+    <!-- Subtle Golden-Oxblood Rim Border -->
+    <linearGradient id="favicon-rim" x1="10" y1="10" x2="150" y2="150" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stopColor="#FFC843" stop-opacity="0.65" />
+      <stop offset="50%" stopColor="#FFA834" stop-opacity="0.3" />
+      <stop offset="100%" stopColor="#9E2A2B" stop-opacity="0.45" />
+    </linearGradient>
+
+    <!-- Radiant Golden Flame Verve Logo Gradient -->
+    <linearGradient id="favicon-gold" x1="20" y1="20" x2="140" y2="140" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stopColor="#FFE57F" />
+      <stop offset="35%" stopColor="#FFC13B" />
+      <stop offset="70%" stopColor="#FFA126" />
+      <stop offset="100%" stopColor="#FF6D1B" />
+    </linearGradient>
+
+    <!-- Ambient Center Core Glow -->
+    <radialGradient id="favicon-glow" cx="80" cy="80" r="50" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stopColor="#FFA834" stop-opacity="0.22" />
+      <stop offset="60%" stopColor="#FF6D1B" stop-opacity="0.08" />
+      <stop offset="100%" stopColor="#12060D" stop-opacity="0" />
+    </radialGradient>
   </defs>
 
-  <!-- Ray 1 -->
-  <path
-    d="M 58 64 C 54 52 45 38 34 26 C 30 22 24 23 26 29 C 32 42 42 58 48 70 C 51 74 56 70 58 64 Z"
-    fill="url(#favicon-sun-grad)"
+  <!-- Squircle Base Badge (Ensures high contrast on both light and dark browser tabs) -->
+  <rect
+    x="4"
+    y="4"
+    width="152"
+    height="152"
+    rx="38"
+    fill="url(#favicon-bg)"
+    stroke="url(#favicon-rim)"
+    stroke-width="2.5"
   />
 
-  <!-- Ray 2 -->
-  <path
-    d="M 46 76 C 34 66 22 55 9 46 C 5 43 1 48 4 52 C 15 63 28 77 38 86 C 42 89 47 84 46 76 Z"
-    fill="url(#favicon-sun-grad)"
-  />
+  <!-- Subtle Ambient Flare Behind Spiral -->
+  <circle cx="80" cy="80" r="48" fill="url(#favicon-glow)" />
 
-  <!-- Ray 3 -->
-  <path
-    d="M 40 92 C 26 87 14 83 2 80 C -2 79 -1 85 3 87 C 14 93 27 99 37 103 C 42 105 45 98 40 92 Z"
-    fill="url(#favicon-sun-grad)"
-  />
+  <!-- Perfectly Centered and Optically Balanced Verve Spiral Hand Mark -->
+  <g transform="translate(19.7, 10.3) scale(0.82)">
+    <!-- Ray 1 (Top-most radiant ray) -->
+    <path
+      d="M 58 64 C 54 52 45 38 34 26 C 30 22 24 23 26 29 C 32 42 42 58 48 70 C 51 74 56 70 58 64 Z"
+      fill="url(#favicon-gold)"
+    />
 
-  <!-- Ray 4 -->
-  <path
-    d="M 44 110 C 31 112 18 114 5 116 C 0 117 0 123 5 123 C 18 122 31 119 43 118 C 48 117 49 111 44 110 Z"
-    fill="url(#favicon-sun-grad)"
-  />
+    <!-- Ray 2 (Upper-middle radiant ray) -->
+    <path
+      d="M 46 76 C 34 66 22 55 9 46 C 5 43 1 48 4 52 C 15 63 28 77 38 86 C 42 89 47 84 46 76 Z"
+      fill="url(#favicon-gold)"
+    />
 
-  <!-- Central Palm Spiral -->
-  <path
-    d="M 69 90 C 72 81 83 80 87 87 C 91 95 86 104 77 105 C 65 107 55 97 56 85 C 57 69 72 58 87 60 C 103 62 114 77 112 94 C 110 112 92 125 74 123 C 58 121 48 107 48 94 C 48 76 62 60 79 56 C 96 52 114 62 120 78 C 124 88 124 100 121 112 C 118 122 108 132 96 137 C 82 143 65 141 53 133 C 44 126 40 116 40 105"
-    fill="none"
-    stroke="url(#favicon-sun-grad)"
-    stroke-width="8"
-    stroke-linecap="round"
-    stroke-linejoin="round"
-  />
+    <!-- Ray 3 (Lower-middle radiant ray) -->
+    <path
+      d="M 40 92 C 26 87 14 83 2 80 C -2 79 -1 85 3 87 C 14 93 27 99 37 103 C 42 105 45 98 40 92 Z"
+      fill="url(#favicon-gold)"
+    />
 
-  <!-- Upward right swooping V-arm -->
-  <path
-    d="M 96 137 C 112 133 124 121 127 105 C 130 90 128 72 124 57 C 122 47 122 38 124 31 C 125 26 132 23 138 25 C 144 27 149 32 147 37 C 145 42 138 45 136 52 C 133 63 134 78 131 92 C 127 113 113 130 96 137 Z"
-    fill="url(#favicon-sun-grad)"
-  />
+    <!-- Ray 4 (Bottom radiant ray) -->
+    <path
+      d="M 44 110 C 31 112 18 114 5 116 C 0 117 0 123 5 123 C 18 122 31 119 43 118 C 48 117 49 111 44 110 Z"
+      fill="url(#favicon-gold)"
+    />
+
+    <!-- Central Palm Spiral (Optimized stroke weight for small favicon tab rendering) -->
+    <path
+      d="M 69 90 C 72 81 83 80 87 87 C 91 95 86 104 77 105 C 65 107 55 97 56 85 C 57 69 72 58 87 60 C 103 62 114 77 112 94 C 110 112 92 125 74 123 C 58 121 48 107 48 94 C 48 76 62 60 79 56 C 96 52 114 62 120 78 C 124 88 124 100 121 112 C 118 122 108 132 96 137 C 82 143 65 141 53 133 C 44 126 40 116 40 105"
+      fill="none"
+      stroke="url(#favicon-gold)"
+      stroke-width="10"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+
+    <!-- Upward right swooping V-arm with outward curved thumb tip -->
+    <path
+      d="M 96 137 C 112 133 124 121 127 105 C 130 90 128 72 124 57 C 122 47 122 38 124 31 C 125 26 132 23 138 25 C 144 27 149 32 147 37 C 145 42 138 45 136 52 C 133 63 134 78 131 92 C 127 113 113 130 96 137 Z"
+      fill="url(#favicon-gold)"
+    />
+  </g>
 </svg>

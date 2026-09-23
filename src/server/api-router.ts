@@ -1083,6 +1083,21 @@ export async function handleApiRequest(request: Request): Promise<Response> {
     }
 
     // --------------------------------------------------------------------------
+    // 21b. GET /api/promotions (Active Public Promotions)
+    // --------------------------------------------------------------------------
+    if (pathname === "/api/promotions" && method === "GET") {
+      const allPromos = AdminServerService.getPromotions();
+      const now = new Date();
+      const activePromos = allPromos.filter((p) => {
+        if (!p.isActive) return false;
+        if (p.maxUses && p.currentUses >= p.maxUses) return false;
+        if (p.expiresAt && new Date(p.expiresAt) < now) return false;
+        return true;
+      });
+      return json({ success: true, count: activePromos.length, promotions: activePromos });
+    }
+
+    // --------------------------------------------------------------------------
     // 22. GET /api/admin/audit-logs (Audit Trail)
     // --------------------------------------------------------------------------
     if (pathname === "/api/admin/audit-logs" && method === "GET") {
