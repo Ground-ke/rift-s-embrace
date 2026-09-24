@@ -365,10 +365,10 @@ export function ManualVerificationTab() {
           </span>
           <div className="flex items-center gap-1.5 text-emerald-400 font-mono text-sm pt-1">
             <Mail className="w-4 h-4" />
-            <span>Resend / Email Active</span>
+            <span>Gmail SMTP Active</span>
           </div>
           <p className="text-[10px] text-muted-foreground font-mono">
-            Tickets sent to buyer&apos;s email on approval
+            Dispatched from verve.n.co.ke@gmail.com on approval
           </p>
         </div>
       </div>

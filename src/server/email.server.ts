@@ -6,6 +6,7 @@ import {
   generateBookingConfirmationEmailHtml,
   generateEventReminder24hEmailHtml,
   generateRefundNoticeEmailHtml,
+  generateMpesaReceivedEmailHtml,
   type TicketEmailItem,
 } from "../lib/email-templates";
 import { generateTicketPdfBuffer } from "./pdf-ticket";
@@ -14,6 +15,7 @@ export {
   generateBookingConfirmationEmailHtml,
   generateEventReminder24hEmailHtml,
   generateRefundNoticeEmailHtml,
+  generateMpesaReceivedEmailHtml,
   type TicketEmailItem,
 };
 
@@ -21,23 +23,40 @@ let smtpTransporter: nodemailer.Transporter | null = null;
 
 /**
  * Configure Nodemailer SMTP Transporter
- * Uses Gmail SMTP with verve.n.co.ke@gmail.com and Google App Password.
+ * Supports standard Vercel environment variables:
+ * - SMTP_USER / SMTP_USERNAME / GMAIL_USER / EMAIL_USER
+ * - SMTP_PASS / SMTP_PASSWORD / GMAIL_APP_PASSWORD / GMAIL_PASSWORD / EMAIL_PASS
+ * - SMTP_HOST / EMAIL_HOST (defaults to smtp.gmail.com)
+ * - SMTP_PORT / EMAIL_PORT (defaults to 465)
+ * - SMTP_SECURE
  */
-function getSmtpTransporter(): nodemailer.Transporter | null {
-  const rawUser = process.env.SMTP_USER || process.env.GMAIL_USER || "verve.n.co.ke@gmail.com";
-  const rawPass = process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD;
+export function getSmtpTransporter(): nodemailer.Transporter | null {
+  const rawUser =
+    process.env.SMTP_USER ||
+    process.env.SMTP_USERNAME ||
+    process.env.GMAIL_USER ||
+    process.env.EMAIL_USER ||
+    "verve.n.co.ke@gmail.com";
+  const rawPass =
+    process.env.SMTP_PASS ||
+    process.env.SMTP_PASSWORD ||
+    process.env.GMAIL_APP_PASSWORD ||
+    process.env.GMAIL_PASSWORD ||
+    process.env.EMAIL_PASS ||
+    process.env.EMAIL_PASSWORD;
 
   if (!rawPass) return null;
 
   const user = rawUser.trim();
-  // Google App Passwords often have spaces (e.g., 'vcie zmdk vsmf npgp'). Strip spaces for SMTP auth.
+  // Strip whitespace from passwords (Google App Passwords frequently have spaces like 'xxxx yyyy zzzz wwww')
   const pass = rawPass.replace(/\s+/g, "");
 
-  if (!smtpTransporter) {
-    const host = process.env.SMTP_HOST || "smtp.gmail.com";
-    const port = Number(process.env.SMTP_PORT) || 465;
-    const secure = process.env.SMTP_SECURE === "false" ? false : true;
+  const host = process.env.SMTP_HOST || process.env.EMAIL_HOST || "smtp.gmail.com";
+  const port = Number(process.env.SMTP_PORT || process.env.EMAIL_PORT) || 465;
+  const isExplicitSecure = process.env.SMTP_SECURE !== undefined;
+  const secure = isExplicitSecure ? process.env.SMTP_SECURE === "true" : port === 465;
 
+  if (!smtpTransporter) {
     smtpTransporter = nodemailer.createTransport({
       host,
       port,
@@ -46,9 +65,24 @@ function getSmtpTransporter(): nodemailer.Transporter | null {
         user,
         pass,
       },
+      tls: {
+        rejectUnauthorized: false,
+      },
+      connectionTimeout: 10000,
+      greetingTimeout: 5000,
+      socketTimeout: 15000,
     });
   }
   return smtpTransporter;
+}
+
+/**
+ * Helper to get the canonical base URL for emails and links
+ */
+export function getSiteBaseUrl(): string {
+  if (process.env.SITE_URL) return process.env.SITE_URL.replace(/\/+$/, "");
+  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
+  return "https://verve-hauntings.vercel.app";
 }
 
 /**
@@ -211,9 +245,7 @@ export async function sendTicketConfirmationEmail(params: {
   const total = params.totalKes ?? qty * 1000;
   const venue = params.venueName || "Top Cliff Lodge, Nakuru";
   const eventDate = params.eventDate || "Saturday, 31 October 2026";
-  const siteUrl =
-    process.env.SITE_URL ||
-    "https://ais-dev-vsqv3iunzivbty4kcmufgu-668094516097.europe-west1.run.app";
+  const siteUrl = getSiteBaseUrl();
   const primaryTicketUrl =
     params.ticketUrl ||
     (params.tickets && params.tickets[0]?.ticketUrl) ||
@@ -541,6 +573,100 @@ export async function sendBroadcastEmail({
   return dispatchEmail({
     to,
     subject,
+    html: emailHtml,
+  });
+}
+
+/**
+ * Sends automated M-Pesa submission acknowledgment email to customer
+ * Reassures buyer that payment reference was received and ticket will be issued upon 24-hr verification.
+ */
+export async function sendMpesaReceivedAcknowledgmentEmail(params: {
+  to: string;
+  customerName?: string;
+  orderNumber: string;
+  mpesaCode: string;
+  ticketTier?: string;
+  quantity?: number;
+  totalKes?: number;
+  orderId?: string;
+  checkoutToken?: string;
+}): Promise<{ success: boolean; id?: string; simulated?: boolean; error?: string }> {
+  const siteUrl = getSiteBaseUrl();
+  const orderUrl = params.orderId
+    ? `${siteUrl}/pay?order=${params.orderId}${params.checkoutToken ? `&token=${params.checkoutToken}` : ""}`
+    : `${siteUrl}/recover`;
+
+  const emailHtml = generateMpesaReceivedEmailHtml({
+    customer_name: params.customerName || "Valued Attendee",
+    order_number: params.orderNumber,
+    mpesa_code: params.mpesaCode,
+    ticket_tier: params.ticketTier || "General Admission Pass",
+    quantity: params.quantity || 1,
+    total_amount: params.totalKes || 1000,
+    order_url: orderUrl,
+    event_date: "Saturday, 31 October 2026",
+    venue_name: "Top Cliff Lodge, Nakuru",
+  });
+
+  return dispatchEmail({
+    to: params.to,
+    subject: `M-Pesa Payment Received: Order #${params.orderNumber} (${params.mpesaCode}) — Hauntings of the Rift`,
+    html: emailHtml,
+  });
+}
+
+/**
+ * Notifies the organizer inbox (verve.n.co.ke@gmail.com) of an incoming M-Pesa transaction awaiting review
+ */
+export async function sendOrganizerNewMpesaNotification(params: {
+  orderNumber: string;
+  mpesaCode: string;
+  customerName: string;
+  customerEmail: string;
+  customerPhone?: string;
+  ticketTier: string;
+  quantity: number;
+  totalKes: number;
+  rawMessage?: string;
+}): Promise<{ success: boolean; id?: string; simulated?: boolean; error?: string }> {
+  const organizerEmail =
+    process.env.ORGANIZER_EMAIL || process.env.SMTP_USER || "verve.n.co.ke@gmail.com";
+  const siteUrl = getSiteBaseUrl();
+  const adminUrl = `${siteUrl}/admin`;
+
+  const emailHtml = `
+    <!DOCTYPE html>
+    <html>
+      <head><meta charset="utf-8" /></head>
+      <body style="background:#09080D; font-family:monospace; color:#F5F2EB; margin:0; padding:20px;">
+        <div style="max-width:540px; margin:0 auto; background:#120E17; border:1px solid #C9A84C; padding:24px; border-radius:8px;">
+          <h2 style="color:#C9A84C; margin:0 0 12px 0; font-size:16px;">[ACTION REQUIRED] New M-Pesa Payment Submitted</h2>
+          <p style="font-size:13px; color:#D5CFDE; margin:0 0 16px 0;">
+            A customer submitted an M-Pesa transaction reference for verification in the admin console.
+          </p>
+          <div style="background:#0A080E; border:1px solid #28212D; padding:16px; border-radius:6px; font-size:13px; line-height:1.6; margin-bottom:20px;">
+            <div><strong>Order:</strong> #${params.orderNumber}</div>
+            <div><strong>M-Pesa Code:</strong> <span style="color:#E5C365; font-weight:bold;">${params.mpesaCode}</span></div>
+            <div><strong>Customer:</strong> ${params.customerName} (${params.customerEmail})</div>
+            <div><strong>Phone:</strong> ${params.customerPhone || "N/A"}</div>
+            <div><strong>Pass:</strong> ${params.ticketTier} (x${params.quantity})</div>
+            <div><strong>Expected Amount:</strong> KES ${params.totalKes.toLocaleString()}</div>
+            ${params.rawMessage ? `<div style="margin-top:8px; padding-top:8px; border-top:1px dashed #332B3A; color:#A09BA8; font-size:11px;"><em>Raw Input:</em> ${params.rawMessage}</div>` : ""}
+          </div>
+          <div style="text-align:center;">
+            <a href="${adminUrl}" style="background:#8A1C2C; color:#FFFFFF; padding:10px 24px; text-decoration:none; font-weight:bold; font-size:12px; border-radius:4px; display:inline-block;">
+              OPEN M-PESA VERIFICATION QUEUE &rarr;
+            </a>
+          </div>
+        </div>
+      </body>
+    </html>
+  `;
+
+  return dispatchEmail({
+    to: organizerEmail,
+    subject: `🔔 New M-Pesa Payment: ${params.mpesaCode} (Order #${params.orderNumber} - KES ${params.totalKes})`,
     html: emailHtml,
   });
 }

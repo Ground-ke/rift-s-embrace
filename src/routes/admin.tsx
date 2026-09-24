@@ -21,7 +21,6 @@ import {
   Receipt,
   Camera,
   MessageSquare,
-  Mail,
   Send,
   ArrowRight,
   type LucideIcon,
@@ -38,7 +37,6 @@ import { TicketTiersPricingTab } from "@/components/admin/ticket-tiers-pricing-t
 import { NotificationCenterTab } from "@/components/admin/notification-center-tab";
 import { AnalyticsLiveTab } from "@/components/admin/analytics-live-tab";
 import { ManualVerificationTab } from "@/components/admin/manual-verification-tab";
-import { GmailInboxTab } from "@/components/admin/gmail-inbox-tab";
 import { AudienceBroadcastTab } from "@/components/admin/email-broadcast-tab";
 import { useAdminAuth } from "@/lib/auth/admin-auth-context";
 import {
@@ -276,11 +274,6 @@ function AdminDashboardContent() {
       id: "analytics",
       label: "Page Analytics",
       icon: BarChart3,
-    },
-    {
-      id: "gmail",
-      label: "Organizer Inbox",
-      icon: Mail,
     },
     {
       id: "notifications",
@@ -787,9 +780,6 @@ function AdminDashboardContent() {
 
           {/* TAB: PAGE ANALYTICS */}
           {activeTab === "analytics" && <AnalyticsLiveTab />}
-
-          {/* TAB: ORGANIZER INBOX */}
-          {activeTab === "gmail" && <GmailInboxTab />}
 
           {/* TAB: M-PESA APPROVAL QUEUE */}
           {activeTab === "verifications" && <ManualVerificationTab />}

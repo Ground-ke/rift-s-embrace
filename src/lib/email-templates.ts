@@ -407,3 +407,156 @@ export function generateRefundNoticeEmailHtml(params: {
 </body>
 </html>`;
 }
+
+// -----------------------------------------------------------------------------
+// 4. M-Pesa Payment Received Acknowledgment Template
+// -----------------------------------------------------------------------------
+export function generateMpesaReceivedEmailHtml(params: {
+  customer_name: string;
+  order_number: string;
+  mpesa_code: string;
+  ticket_tier: string;
+  quantity: number | string;
+  total_amount: number | string;
+  order_url?: string;
+  event_date?: string;
+  venue_name?: string;
+}): string {
+  const {
+    customer_name,
+    order_number,
+    mpesa_code,
+    ticket_tier,
+    quantity,
+    total_amount,
+    order_url = "https://verve-hauntings.vercel.app",
+    event_date = "Saturday, 31 October 2026",
+    venue_name = "Top Cliff Lodge, Nakuru",
+  } = params;
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>M-Pesa Payment Received — Hauntings of the Rift</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #09080D; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #F5F2EB;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #09080D; min-height: 100vh; padding: 32px 16px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" style="max-width: 580px; background-color: #120E17; border: 1px solid #332338; border-radius: 12px; overflow: hidden; box-shadow: 0 16px 40px rgba(0,0,0,0.7);">
+          
+          <!-- Header Banner Strip -->
+          <tr>
+            <td style="background: linear-gradient(135deg, #1A0D18 0%, #2A101C 100%); padding: 28px 24px; text-align: center; border-bottom: 2px solid #8A1C2C;">
+              <p style="margin: 0 0 6px 0; font-size: 11px; letter-spacing: 0.25em; text-transform: uppercase; color: #C9A84C; font-weight: 700;">
+                VERVE &amp; CO. PRESENTS
+              </p>
+              <h1 style="margin: 0 0 8px 0; font-size: 24px; font-weight: 800; color: #F5F2EB; letter-spacing: -0.02em;">
+                HAUNTINGS OF THE RIFT
+              </h1>
+              <p style="margin: 0; font-size: 12px; color: #A09BA8; font-mono;">
+                ${event_date} • ${venue_name}
+              </p>
+            </td>
+          </tr>
+
+          <!-- Status Indicator Card -->
+          <tr>
+            <td style="padding: 24px 28px 12px 28px;">
+              <div style="background-color: rgba(201, 168, 76, 0.1); border: 1px solid rgba(201, 168, 76, 0.35); border-radius: 8px; padding: 14px 18px; text-align: center;">
+                <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.15em; color: #E5C365;">
+                  ⏳ Payment Received • Verification in Progress
+                </span>
+                <p style="margin: 4px 0 0 0; font-size: 12px; color: #D5CFDE;">
+                  Standard Processing SLA: Within 24 hours of submission
+                </p>
+              </div>
+            </td>
+          </tr>
+
+          <!-- Greeting Body -->
+          <tr>
+            <td style="padding: 12px 28px 20px 28px;">
+              <p style="margin: 0 0 14px 0; font-size: 15px; line-height: 1.6; color: #F5F2EB;">
+                Hi <strong>${customer_name}</strong>,
+              </p>
+              <p style="margin: 0 0 16px 0; font-size: 14px; line-height: 1.6; color: #C4BFCC;">
+                We have successfully received your M-Pesa transaction reference for order <strong style="color: #F5F2EB;">#${order_number}</strong>. Our finance desk is cross-referencing your transaction code against our official Safaricom statement.
+              </p>
+            </td>
+          </tr>
+
+          <!-- Transaction Summary Table -->
+          <tr>
+            <td style="padding: 0 28px 20px 28px;">
+              <table role="presentation" width="100%" style="background-color: #0B0910; border: 1px solid #28212D; border-radius: 8px; border-collapse: collapse;">
+                <tr>
+                  <td style="padding: 12px 16px; border-bottom: 1px solid #1E1824; font-size: 12px; color: #8F8799; text-transform: uppercase; letter-spacing: 0.05em;">M-Pesa Reference Code</td>
+                  <td align="right" style="padding: 12px 16px; border-bottom: 1px solid #1E1824; font-size: 14px; font-weight: 700; color: #E5C365; font-family: monospace;">${mpesa_code}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 12px 16px; border-bottom: 1px solid #1E1824; font-size: 12px; color: #8F8799; text-transform: uppercase; letter-spacing: 0.05em;">Pass Tier</td>
+                  <td align="right" style="padding: 12px 16px; border-bottom: 1px solid #1E1824; font-size: 13px; font-weight: 600; color: #F5F2EB;">${ticket_tier}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 12px 16px; border-bottom: 1px solid #1E1824; font-size: 12px; color: #8F8799; text-transform: uppercase; letter-spacing: 0.05em;">Quantity</td>
+                  <td align="right" style="padding: 12px 16px; border-bottom: 1px solid #1E1824; font-size: 13px; color: #F5F2EB;">${quantity} Pass(es)</td>
+                </tr>
+                <tr>
+                  <td style="padding: 12px 16px; font-size: 12px; color: #8F8799; text-transform: uppercase; letter-spacing: 0.05em;">Amount Submitted</td>
+                  <td align="right" style="padding: 12px 16px; font-size: 15px; font-weight: 800; color: #10B981;">KES ${typeof total_amount === "number" ? total_amount.toLocaleString() : total_amount}</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- What Happens Next Guide -->
+          <tr>
+            <td style="padding: 0 28px 24px 28px;">
+              <h3 style="margin: 0 0 12px 0; font-size: 12px; text-transform: uppercase; letter-spacing: 0.15em; color: #C9A84C;">
+                What Happens Next:
+              </h3>
+              <ol style="margin: 0; padding-left: 20px; font-size: 13px; line-height: 1.7; color: #C4BFCC;">
+                <li style="margin-bottom: 8px;">
+                  <strong style="color: #F5F2EB;">Verification:</strong> Our team checks the reference against our merchant statement within 24 hours.
+                </li>
+                <li style="margin-bottom: 8px;">
+                  <strong style="color: #F5F2EB;">Automated Ticket Delivery:</strong> The moment payment is verified, your official cryptographically signed admission pass with QR code, downloadable PDF, and calendar invite will be automatically delivered to this email address.
+                </li>
+                <li>
+                  <strong style="color: #F5F2EB;">Gate Entry:</strong> Simply display your digital QR pass on your phone upon arrival on 31 October 2026.
+                </li>
+              </ol>
+            </td>
+          </tr>
+
+          <!-- Action Button -->
+          <tr>
+            <td align="center" style="padding: 0 28px 28px 28px;">
+              <a href="${order_url}" style="background-color: #8A1C2C; color: #FFFFFF; padding: 13px 30px; font-size: 13px; font-weight: 700; text-decoration: none; border-radius: 6px; display: inline-block; letter-spacing: 0.05em; text-transform: uppercase;">
+                View Order Status &rarr;
+              </a>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="background-color: #0B0910; border-top: 1px solid #231C28; padding: 20px 24px; text-align: center;">
+              <p style="margin: 0 0 6px 0; font-size: 11px; color: #7F778A;">
+                Questions or corrections? Reply directly to this email or write to <a href="mailto:verve.n.co.ke@gmail.com" style="color: #C9A84C; text-decoration: none;">verve.n.co.ke@gmail.com</a>.
+              </p>
+              <p style="margin: 0; font-size: 10px; color: #5B5466;">
+                Hauntings of the Rift • Official Event Operations • Top Cliff Lodge, Nakuru
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+}

@@ -4,7 +4,7 @@ import {
   createRecoveryToken,
   verifyRecoveryToken,
 } from "./crypto";
-import { sendTicketConfirmationEmail, sendRecoveryEmail } from "./email.server";
+import { sendTicketConfirmationEmail, sendRecoveryEmail, getSiteBaseUrl } from "./email.server";
 import { OrderService } from "./order-service";
 import { isCloudSqlConfigured } from "../db/index.ts";
 import { insertTickets, updateTicketStatus } from "../db/tickets.ts";
@@ -342,6 +342,7 @@ export class TicketsServerService {
 
       // 6. Automatically dispatch confirmation email with ticket pass attached to buyer
       if (order.buyerEmail) {
+        const siteBase = getSiteBaseUrl();
         sendTicketConfirmationEmail({
           to: order.buyerEmail,
           buyerName: order.buyerName,
@@ -349,13 +350,13 @@ export class TicketsServerService {
           totalKes: order.totalKes,
           ticketTier: order.ticketName,
           quantity: order.quantity,
-          ticketUrl: `https://verve-hauntings.vercel.app/ticket/${tickets[0]?.ticketNumber || "demo"}`,
+          ticketUrl: `${siteBase}/ticket/${tickets[0]?.ticketNumber || "demo"}`,
           tickets: tickets.map((t) => ({
             ticketNumber: t.ticketNumber,
             tierName: t.tierName,
             attendeeName: t.attendeeName,
             admitsCount: t.admitsCount,
-            ticketUrl: `https://verve-hauntings.vercel.app/ticket/${t.ticketNumber}`,
+            ticketUrl: `${siteBase}/ticket/${t.ticketNumber}`,
           })),
         }).catch((emailErr) => {
           console.warn("Could not dispatch ticket confirmation email:", emailErr);

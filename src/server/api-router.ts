@@ -6,12 +6,16 @@ import { RefundService } from "./refund-service";
 import { WhatsAppNotificationService } from "./whatsapp-service";
 import {
   sendTicketConfirmationEmail,
+  sendMpesaReceivedAcknowledgmentEmail,
+  sendOrganizerNewMpesaNotification,
   sendEventReminder24hEmail,
   sendRefundNoticeEmail,
   sendBroadcastEmail,
   generateBookingConfirmationEmailHtml,
   generateEventReminder24hEmailHtml,
   generateRefundNoticeEmailHtml,
+  generateMpesaReceivedEmailHtml,
+  getSiteBaseUrl,
 } from "./email.server";
 import { generateTicketPdfBuffer, generateTicketPassImageBuffer } from "./pdf-ticket";
 import { SlidingWindowRateLimiter } from "./rate-limiter";
@@ -94,8 +98,16 @@ export async function handleApiRequest(request: Request): Promise<Response> {
             process.env.MPESA_CONSUMER_KEY && process.env.MPESA_CONSUMER_SECRET,
           ),
           gmailSmtpConfigured: Boolean(
-            (process.env.SMTP_USER || process.env.GMAIL_USER) &&
-            (process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD),
+            (process.env.SMTP_USER ||
+              process.env.SMTP_USERNAME ||
+              process.env.GMAIL_USER ||
+              process.env.EMAIL_USER) &&
+            (process.env.SMTP_PASS ||
+              process.env.SMTP_PASSWORD ||
+              process.env.GMAIL_APP_PASSWORD ||
+              process.env.GMAIL_PASSWORD ||
+              process.env.EMAIL_PASS ||
+              process.env.EMAIL_PASSWORD),
           ),
           whatsappConfigured: Boolean(
             process.env.WHATSAPP_API_KEY || process.env.TWILIO_AUTH_TOKEN,
@@ -217,9 +229,52 @@ export async function handleApiRequest(request: Request): Promise<Response> {
         buyerEmail,
       });
 
-      if (!result.success) {
+      if (!result.success || !result.order) {
         return json(result, result.code === "NOT_FOUND" ? 404 : 400);
       }
+
+      const order = result.order;
+      const targetEmail = (buyerEmail || order.buyerEmail || "").trim().toLowerCase();
+
+      // 1. Automate receipt & verification pending email to buyer
+      let buyerEmailDispatched = false;
+      if (targetEmail) {
+        sendMpesaReceivedAcknowledgmentEmail({
+          to: targetEmail,
+          customerName: order.buyerName || "Valued Attendee",
+          orderNumber: order.orderNumber,
+          mpesaCode: extractedCode,
+          ticketTier: order.ticketName || "General Admission Pass",
+          quantity: order.quantity || 1,
+          totalKes: order.totalKes || 1000,
+          orderId: order.id,
+          checkoutToken: order.checkoutToken,
+        })
+          .then((res) => {
+            console.info(
+              `[Email Service] M-Pesa acknowledgment dispatched to ${targetEmail} (status: ${res.success ? "sent" : "failed"})`,
+            );
+          })
+          .catch((err) => {
+            console.error("[Email Service] M-Pesa acknowledgment dispatch error:", err);
+          });
+        buyerEmailDispatched = true;
+      }
+
+      // 2. Automate organizer notification to verve.n.co.ke@gmail.com
+      sendOrganizerNewMpesaNotification({
+        orderNumber: order.orderNumber,
+        mpesaCode: extractedCode,
+        customerName: order.buyerName || "Attendee",
+        customerEmail: targetEmail || "Not provided",
+        customerPhone: order.buyerPhone || "Not provided",
+        ticketTier: order.ticketName || "General Admission Pass",
+        quantity: order.quantity || 1,
+        totalKes: order.totalKes || 1000,
+        rawMessage: rawInput.trim(),
+      }).catch((err) => {
+        console.error("[Email Service] Organizer notification dispatch error:", err);
+      });
 
       return json({
         success: true,
@@ -227,6 +282,7 @@ export async function handleApiRequest(request: Request): Promise<Response> {
         mpesaCode: extractedCode,
         status: "pending_approval",
         message: "M-Pesa code submitted. Ticket approval dispatched to admin.",
+        buyerEmailSent: buyerEmailDispatched,
         order: result.order,
       });
     }
@@ -869,9 +925,18 @@ export async function handleApiRequest(request: Request): Promise<Response> {
 
       // 3. Send ticket confirmation email to buyer if email provided
       let emailResult = { success: false, simulated: false, reason: "No email provided on order" };
+      const overrideEmail =
+        body["buyer_email"] ||
+        body["buyerEmail"] ||
+        body["customerEmail"] ||
+        body["customer_email"];
+      if (overrideEmail && typeof overrideEmail === "string" && !order.buyerEmail) {
+        order.buyerEmail = overrideEmail.trim().toLowerCase();
+      }
       const recipientEmail = order.buyerEmail;
 
       if (recipientEmail) {
+        const siteBase = getSiteBaseUrl();
         try {
           const emailResponse = await sendTicketConfirmationEmail({
             to: recipientEmail,
@@ -880,13 +945,13 @@ export async function handleApiRequest(request: Request): Promise<Response> {
             totalKes: order.totalKes,
             ticketTier: order.ticketName,
             quantity: order.quantity,
-            ticketUrl: `https://verve-hauntings.vercel.app/ticket/${tickets[0]?.ticketNumber || "demo"}`,
+            ticketUrl: `${siteBase}/ticket/${tickets[0]?.ticketNumber || "demo"}`,
             tickets: tickets.map((t) => ({
               ticketNumber: t.ticketNumber,
               tierName: t.tierName,
               admitsCount: t.admitsCount,
               qrHash: t.qrHash,
-              ticketUrl: `https://verve-hauntings.vercel.app/ticket/${t.ticketNumber}`,
+              ticketUrl: `${siteBase}/ticket/${t.ticketNumber}`,
               qrDataUrl: `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(
                 JSON.stringify({
                   code: t.ticketNumber,

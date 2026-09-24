@@ -426,9 +426,10 @@ export const PaymentStatusCard: React.FC<PaymentStatusCardProps> = ({
                     Expected Processing Time: Within 24 Hours
                   </strong>
                   <span>
-                    Tickets are processed manually by the admin. Our operations team audits every
-                    transaction against our official merchant statement. Your digital ticket and QR
-                    admission pass will be verified and emailed to your address within 24 hours.
+                    An automated payment acknowledgment has been emailed to you. Our operations team
+                    audits every transaction against our official merchant statement, and your
+                    official cryptographic QR ticket pass will be delivered automatically upon
+                    confirmation.
                   </span>
                 </div>
               </div>
