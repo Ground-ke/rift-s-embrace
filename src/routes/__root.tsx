@@ -15,6 +15,7 @@ import { reportLovableError } from "../lib/lovable-error-reporting";
 import { VerveErrorState } from "../components/brand/verve-logo";
 import { AdminAuthProvider } from "../lib/auth/admin-auth-context";
 import { analytics } from "../lib/analytics";
+import { CookieConsentBanner } from "../components/legal/cookie-consent-banner";
 
 function NotFoundComponent() {
   return (
@@ -122,6 +123,7 @@ function RootComponent() {
           <Outlet />
         </main>
         <Toaster richColors position="top-right" theme="dark" />
+        <CookieConsentBanner />
       </AdminAuthProvider>
     </QueryClientProvider>
   );

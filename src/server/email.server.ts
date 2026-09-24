@@ -1,4 +1,4 @@
-import { Resend } from "resend";
+import nodemailer from "nodemailer";
 import {
   generateBookingConfirmationEmailHtml,
   generateEventReminder24hEmailHtml,
@@ -13,15 +13,92 @@ export {
   type TicketEmailItem,
 };
 
-let resendClient: Resend | null = null;
+let smtpTransporter: nodemailer.Transporter | null = null;
 
-function getResendClient(): Resend | null {
-  const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) return null;
-  if (!resendClient) {
-    resendClient = new Resend(apiKey);
+/**
+ * Configure Nodemailer SMTP Transporter
+ * Uses Gmail SMTP with verve.n.co.ke@gmail.com and Google App Password.
+ */
+function getSmtpTransporter(): nodemailer.Transporter | null {
+  const rawUser = process.env.SMTP_USER || process.env.GMAIL_USER || "verve.n.co.ke@gmail.com";
+  const rawPass = process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD;
+
+  if (!rawPass) return null;
+
+  const user = rawUser.trim();
+  // Google App Passwords often have spaces (e.g., 'vcie zmdk vsmf npgp'). Strip spaces for SMTP auth.
+  const pass = rawPass.replace(/\s+/g, "");
+
+  if (!smtpTransporter) {
+    const host = process.env.SMTP_HOST || "smtp.gmail.com";
+    const port = Number(process.env.SMTP_PORT) || 465;
+    const secure = process.env.SMTP_SECURE === "false" ? false : true;
+
+    smtpTransporter = nodemailer.createTransport({
+      host,
+      port,
+      secure,
+      auth: {
+        user,
+        pass,
+      },
+    });
   }
-  return resendClient;
+  return smtpTransporter;
+}
+
+/**
+ * Standard Email Dispatcher
+ * Exclusively routes through Gmail SMTP (Nodemailer) from verve.n.co.ke@gmail.com.
+ * Safely simulates/logs in development if credentials have not been configured yet.
+ */
+async function dispatchEmail({
+  to,
+  subject,
+  html,
+  attachments,
+}: {
+  to: string | string[];
+  subject: string;
+  html: string;
+  attachments?: Array<{ filename: string; content: string; contentType?: string }>;
+}): Promise<{ success: boolean; id?: string; simulated?: boolean; error?: string }> {
+  const defaultFrom =
+    process.env.EMAIL_FROM ||
+    (process.env.SMTP_USER
+      ? `"Verve & Co." <${process.env.SMTP_USER}>`
+      : '"Verve & Co." <verve.n.co.ke@gmail.com>');
+
+  const smtp = getSmtpTransporter();
+  if (smtp) {
+    try {
+      const info = await smtp.sendMail({
+        from: defaultFrom,
+        to,
+        subject,
+        html,
+        attachments: attachments?.map((att) => ({
+          filename: att.filename,
+          content: att.content,
+          encoding: "base64",
+          contentType: att.contentType,
+        })),
+      });
+      return { success: true, id: info.messageId };
+    } catch (smtpErr) {
+      console.error("[SMTP Error] Failed sending via Gmail SMTP:", smtpErr);
+      return {
+        success: false,
+        error: smtpErr instanceof Error ? smtpErr.message : String(smtpErr),
+      };
+    }
+  }
+
+  // Simulation mode (logs safely in dev / test when SMTP credentials are not yet configured)
+  console.info(
+    `[Email Service - Simulated Gmail SMTP] Email to ${Array.isArray(to) ? to.join(", ") : to}: "${subject}"`,
+  );
+  return { success: true, simulated: true };
 }
 
 // -----------------------------------------------------------------------------
@@ -100,9 +177,9 @@ function generatePrintableTicketPassHtml({
       ${tickets && tickets[0] ? `<div class="details-row"><span class="label">Ticket Pass Code</span><span class="value" style="font-family: monospace;">${tickets[0].ticketNumber}</span></div>` : ""}
     </div>
     <div class="venue">
-      <strong>Venue:</strong> Top Cliff Lounge, Nakuru-Nairobi Highway<br/>
+      <strong>Venue:</strong> Top Cliff Lodge, Nakuru<br/>
       <strong>Date:</strong> Saturday, 31 October 2026 · Gates Open 4:00 PM EAT<br/>
-      <strong>Entry Policy:</strong> Strictly 21+ with Valid Government ID. Present this QR code at gate checkpoint.
+      <strong>Entry Policy:</strong> Strictly 18+ with Valid Government ID. Present this QR code at gate checkpoint.
     </div>
     <a href="${primaryUrl}" class="btn" target="_blank">Open Online Pass &amp; Details</a>
   </div>
@@ -132,9 +209,6 @@ export async function sendTicketConfirmationEmail({
   ticketUrl?: string;
   tickets?: TicketEmailItem[];
 }): Promise<{ success: boolean; id?: string; simulated?: boolean; error?: string }> {
-  const fromEmail = process.env.EMAIL_FROM || "tickets@verve.co.ke";
-  const client = getResendClient();
-
   const tier = ticketTier || (tickets && tickets[0]?.tierName) || "General Admission Pass";
   const qty = quantity || tickets?.length || 1;
   const primaryUrl =
@@ -162,40 +236,18 @@ export async function sendTicketConfirmationEmail({
     tickets,
   });
 
-  if (!client) {
-    console.info(`[Email Service - Simulated] Ticket email generated for ${to}:`, {
-      orderNumber,
-      buyerName,
-      totalKes,
-      hasAttachment: true,
-    });
-    return { success: true, simulated: true };
-  }
-
-  try {
-    const { data, error } = await client.emails.send({
-      from: fromEmail,
-      to,
-      subject: `Your Pass to Hauntings of the Rift (${orderNumber}) — Verve & Co.`,
-      html: emailHtml,
-      attachments: [
-        {
-          filename: `Pass-${orderNumber}.html`,
-          content: Buffer.from(printableTicketPassHtml).toString("base64"),
-        },
-      ],
-    });
-
-    if (error) {
-      console.warn("[Resend Error] Could not send ticket confirmation:", error);
-      return { success: false, error: error.message };
-    }
-
-    return { success: true, id: data?.id };
-  } catch (err) {
-    console.error("[Email Exception]", err);
-    return { success: false, error: err instanceof Error ? err.message : String(err) };
-  }
+  return dispatchEmail({
+    to,
+    subject: `Your Pass to Hauntings of the Rift (${orderNumber}) — Verve & Co.`,
+    html: emailHtml,
+    attachments: [
+      {
+        filename: `Pass-${orderNumber}.html`,
+        content: Buffer.from(printableTicketPassHtml).toString("base64"),
+        contentType: "text/html",
+      },
+    ],
+  });
 }
 
 /**
@@ -204,8 +256,8 @@ export async function sendTicketConfirmationEmail({
 export async function sendEventReminder24hEmail({
   to,
   customerName,
-  venueName = "Top Cliff Lounge, Nakuru",
-  gateOpeningTime = "18:00 EAT",
+  venueName = "Top Cliff Lodge, Nakuru",
+  gateOpeningTime = "16:00 EAT",
   ticketTier = "General Admission Pass",
   ticketUrl = "https://hauntingsoftherift.co.ke",
 }: {
@@ -216,9 +268,6 @@ export async function sendEventReminder24hEmail({
   ticketTier?: string;
   ticketUrl?: string;
 }): Promise<{ success: boolean; id?: string; simulated?: boolean; error?: string }> {
-  const fromEmail = process.env.EMAIL_FROM || "tickets@verve.co.ke";
-  const client = getResendClient();
-
   const emailHtml = generateEventReminder24hEmailHtml({
     customer_name: customerName,
     venue_name: venueName,
@@ -227,33 +276,11 @@ export async function sendEventReminder24hEmail({
     ticket_url: ticketUrl,
   });
 
-  if (!client) {
-    console.info(`[Email Service - Simulated] 24h Reminder email generated for ${to}:`, {
-      customerName,
-      venueName,
-      gateOpeningTime,
-    });
-    return { success: true, simulated: true };
-  }
-
-  try {
-    const { data, error } = await client.emails.send({
-      from: fromEmail,
-      to,
-      subject: "24 Hours Until Hauntings of the Rift — Gate & Arrival Instructions",
-      html: emailHtml,
-    });
-
-    if (error) {
-      console.warn("[Resend Error] Could not send 24h reminder:", error);
-      return { success: false, error: error.message };
-    }
-
-    return { success: true, id: data?.id };
-  } catch (err) {
-    console.error("[Email Exception]", err);
-    return { success: false, error: err instanceof Error ? err.message : String(err) };
-  }
+  return dispatchEmail({
+    to,
+    subject: "24 Hours Until Hauntings of the Rift — Gate & Arrival Instructions",
+    html: emailHtml,
+  });
 }
 
 /**
@@ -274,9 +301,6 @@ export async function sendRefundNoticeEmail({
   refundReason: string;
   orderId: string;
 }): Promise<{ success: boolean; id?: string; simulated?: boolean; error?: string }> {
-  const fromEmail = process.env.EMAIL_FROM || "tickets@verve.co.ke";
-  const client = getResendClient();
-
   const formattedAmount =
     typeof refundAmount === "number" ? refundAmount.toLocaleString() : refundAmount;
 
@@ -288,34 +312,11 @@ export async function sendRefundNoticeEmail({
     order_id: orderId,
   });
 
-  if (!client) {
-    console.info(`[Email Service - Simulated] Refund notice email generated for ${to}:`, {
-      customerName,
-      refundAmount: formattedAmount,
-      paymentRef,
-      orderId,
-    });
-    return { success: true, simulated: true };
-  }
-
-  try {
-    const { data, error } = await client.emails.send({
-      from: fromEmail,
-      to,
-      subject: `Refund Processed — Hauntings of the Rift (${orderId})`,
-      html: emailHtml,
-    });
-
-    if (error) {
-      console.warn("[Resend Error] Could not send refund email:", error);
-      return { success: false, error: error.message };
-    }
-
-    return { success: true, id: data?.id };
-  } catch (err) {
-    console.error("[Email Exception]", err);
-    return { success: false, error: err instanceof Error ? err.message : String(err) };
-  }
+  return dispatchEmail({
+    to,
+    subject: `Refund Processed — Hauntings of the Rift (${orderId})`,
+    html: emailHtml,
+  });
 }
 
 /**
@@ -330,9 +331,6 @@ export async function sendRecoveryEmail({
   recoveryUrl: string;
   ticketsCount: number;
 }): Promise<{ success: boolean; id?: string; simulated?: boolean; error?: string }> {
-  const fromEmail = process.env.EMAIL_FROM || "tickets@verve.co.ke";
-  const client = getResendClient();
-
   const emailHtml = `
     <!DOCTYPE html>
     <html>
@@ -372,30 +370,83 @@ export async function sendRecoveryEmail({
     </html>
   `;
 
-  if (!client) {
-    console.info(`[Email Service - Simulated] Ticket Recovery Link for ${to}:`, {
-      recoveryUrl,
-      ticketsCount,
-    });
-    return { success: true, simulated: true };
-  }
+  return dispatchEmail({
+    to,
+    subject: "Access Your Event Tickets — Hauntings of the Rift",
+    html: emailHtml,
+  });
+}
 
-  try {
-    const { data, error } = await client.emails.send({
-      from: fromEmail,
-      to,
-      subject: "Access Your Event Tickets — Hauntings of the Rift",
-      html: emailHtml,
-    });
+/**
+ * Sends a custom email broadcast to a buyer or list of attendees
+ */
+export async function sendBroadcastEmail({
+  to,
+  subject,
+  headline,
+  message,
+  ctaText,
+  ctaUrl,
+}: {
+  to: string | string[];
+  subject: string;
+  headline: string;
+  message: string;
+  ctaText?: string;
+  ctaUrl?: string;
+}): Promise<{ success: boolean; id?: string; simulated?: boolean; error?: string }> {
+  const formattedMessage = message
+    .split("\n\n")
+    .map(
+      (p) =>
+        `<p style="font-size:15px; line-height:1.7; color:#D5CFDE; margin:0 0 16px 0;">${p.replace(/\n/g, "<br/>")}</p>`,
+    )
+    .join("");
 
-    if (error) {
-      console.warn("[Resend Error] Could not send recovery email:", error);
-      return { success: false, error: error.message };
-    }
+  const emailHtml = `
+    <!DOCTYPE html>
+    <html>
+      <head><meta charset="utf-8" /></head>
+      <body style="background:#09080D; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color:#F5F2EB; margin:0; padding:24px;">
+        <div style="max-width:580px; margin:0 auto; background:#120E17; border:1px solid #332338; padding:32px; border-radius:12px; box-shadow:0 12px 36px rgba(0,0,0,0.6);">
+          <div style="text-align:center; border-bottom:1px dashed #3D2644; padding-bottom:20px; margin-bottom:24px;">
+            <p style="color:#F59E0B; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.25em; margin:0 0 8px 0;">Official Event Broadcast</p>
+            <h1 style="color:#F5F2EB; font-size:24px; font-weight:700; letter-spacing:-0.02em; margin:0 0 4px 0;">${headline}</h1>
+            <p style="color:#9CA3AF; font-size:12px; margin:0;">Hauntings of the Rift • Verve &amp; Co.</p>
+          </div>
 
-    return { success: true, id: data?.id };
-  } catch (err) {
-    console.error("[Email Exception]", err);
-    return { success: false, error: err instanceof Error ? err.message : String(err) };
-  }
+          <div style="padding:4px 0;">
+            ${formattedMessage}
+          </div>
+
+          ${
+            ctaText && ctaUrl
+              ? `
+          <div style="text-align:center; margin:32px 0 24px 0;">
+            <a href="${ctaUrl}" style="background:#991B1B; color:#FFFFFF; padding:14px 32px; text-decoration:none; font-weight:700; font-size:14px; border-radius:6px; display:inline-block; letter-spacing:0.06em; text-transform:uppercase;">
+              ${ctaText}
+            </a>
+          </div>
+          `
+              : ""
+          }
+
+          <div style="margin-top:32px; border-top:1px solid #281D2E; padding-top:20px; text-align:center;">
+            <p style="color:#71677A; font-size:11px; line-height:1.5; margin:0 0 6px 0;">
+              You received this notice because you purchased a pass or subscribed to updates for Hauntings of the Rift.
+            </p>
+            <p style="color:#574E60; font-size:11px; margin:0;">
+              Top Cliff Lodge, Nakuru • 31 October 2026 • 18+ Strictly
+            </p>
+          </div>
+        </div>
+      </body>
+    </html>
+  `;
+
+  return dispatchEmail({
+    to,
+    subject,
+    html: emailHtml,
+  });
 }

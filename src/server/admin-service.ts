@@ -319,6 +319,19 @@ export class AdminServerService {
   }
 
   /**
+   * Get Active published promotions for customer/public discovery
+   */
+  static getActivePromotions(): PromotionRecord[] {
+    const now = new Date();
+    return Array.from(promotionsStore.values()).filter((p) => {
+      if (!p.isActive) return false;
+      if (p.expiresAt && new Date(p.expiresAt) < now) return false;
+      if (p.currentUses >= p.maxUses) return false;
+      return true;
+    });
+  }
+
+  /**
    * Create New Promotion Code
    */
   static async createPromotion(params: {

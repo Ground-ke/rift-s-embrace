@@ -255,21 +255,51 @@ export async function submitMpesaCodeToFirestore(params: {
   mpesaCode: string;
   mpesaMessage?: string;
   customerEmail?: string;
+  orderNumber?: string;
+  customerName?: string;
+  customerPhone?: string;
+  ticketTypeId?: string;
+  ticketName?: string;
+  admitsCount?: number;
+  quantity?: number;
+  totalKes?: number;
 }): Promise<void> {
-  const { orderId, mpesaCode, mpesaMessage, customerEmail } = params;
+  const {
+    orderId,
+    mpesaCode,
+    mpesaMessage,
+    customerEmail,
+    orderNumber,
+    customerName,
+    customerPhone,
+    ticketTypeId,
+    ticketName,
+    admitsCount,
+    quantity,
+    totalKes,
+  } = params;
   const path = `orders/${orderId}`;
   try {
     const updateData: Record<string, unknown> = {
+      orderId,
       mpesaCode: mpesaCode.trim().toUpperCase(),
       status: "pending_approval",
       updatedAt: new Date().toISOString(),
     };
     if (mpesaMessage) updateData.mpesaMessage = mpesaMessage.trim();
     if (customerEmail) updateData.customerEmail = customerEmail.trim().toLowerCase();
+    if (orderNumber) updateData.orderNumber = orderNumber;
+    if (customerName) updateData.customerName = customerName;
+    if (customerPhone) updateData.customerPhone = customerPhone;
+    if (ticketTypeId) updateData.ticketTypeId = ticketTypeId;
+    if (ticketName) updateData.ticketName = ticketName;
+    if (admitsCount !== undefined) updateData.admitsCount = admitsCount;
+    if (quantity !== undefined) updateData.quantity = quantity;
+    if (totalKes !== undefined) updateData.totalKes = totalKes;
 
-    await updateDoc(doc(db, "orders", orderId), updateData);
+    await setDoc(doc(db, "orders", orderId), updateData, { merge: true });
   } catch (error) {
-    handleFirestoreError(error, OperationType.UPDATE, path);
+    handleFirestoreError(error, OperationType.WRITE, path);
   }
 }
 

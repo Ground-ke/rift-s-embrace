@@ -704,7 +704,7 @@ export function TicketManagementTab() {
               Digital Admission Pass
             </DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground font-mono">
-              Cryptographic HMAC SHA-256 Gate QR
+              Verified QR Admission Pass
             </DialogDescription>
           </DialogHeader>
 
@@ -731,7 +731,7 @@ export function TicketManagementTab() {
               </div>
 
               <div className="w-full bg-background/80 p-2.5 border border-border text-[10px] text-left font-mono space-y-0.5">
-                <div className="text-muted-foreground">HMAC Integrity Digest:</div>
+                <div className="text-muted-foreground">Pass Verification Code:</div>
                 <div className="truncate text-amber-400/90">{selectedTicket.qrHash}</div>
               </div>
             </div>

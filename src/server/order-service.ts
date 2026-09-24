@@ -954,6 +954,75 @@ export class OrderService {
   }
 
   /**
+   * Get all orders in store (for reporting, reconciliation, and broadcasting)
+   */
+  static getAllOrders(): StoredOrder[] {
+    return Array.from(ordersStore.values());
+  }
+
+  /**
+   * Get unique email list of ticket buyers with their metadata
+   */
+  static getTicketBuyersEmailList(): Array<{
+    email: string;
+    name: string;
+    phone: string;
+    ticketTier: string;
+    orderCount: number;
+    totalPaidKes: number;
+    status: string;
+    latestOrderDate: string;
+  }> {
+    const buyersMap = new Map<
+      string,
+      {
+        email: string;
+        name: string;
+        phone: string;
+        ticketTier: string;
+        orderCount: number;
+        totalPaidKes: number;
+        status: string;
+        latestOrderDate: string;
+      }
+    >();
+
+    for (const order of ordersStore.values()) {
+      if (!order.customerEmail) continue;
+      const normalizedEmail = order.customerEmail.trim().toLowerCase();
+
+      const existing = buyersMap.get(normalizedEmail);
+      if (existing) {
+        existing.orderCount += 1;
+        if (order.status === "completed" || order.status === "approved") {
+          existing.totalPaidKes += order.totalKes;
+        }
+        if (new Date(order.createdAt).getTime() > new Date(existing.latestOrderDate).getTime()) {
+          existing.latestOrderDate = order.createdAt;
+          existing.status = order.status;
+          existing.ticketTier = order.ticketTier;
+        }
+      } else {
+        buyersMap.set(normalizedEmail, {
+          email: normalizedEmail,
+          name: order.customerName || normalizedEmail.split("@")[0],
+          phone: order.customerPhone || "",
+          ticketTier: order.ticketTier,
+          orderCount: 1,
+          totalPaidKes:
+            order.status === "completed" || order.status === "approved" ? order.totalKes : 0,
+          status: order.status,
+          latestOrderDate: order.createdAt,
+        });
+      }
+    }
+
+    return Array.from(buyersMap.values()).sort(
+      (a, b) => new Date(b.latestOrderDate).getTime() - new Date(a.latestOrderDate).getTime(),
+    );
+  }
+
+  /**
    * Cancel an order and release reservation
    */
   static cancelOrder(

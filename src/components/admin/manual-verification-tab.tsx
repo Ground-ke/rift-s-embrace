@@ -622,9 +622,9 @@ export function ManualVerificationTab() {
                   <Mail className="w-4 h-4" /> Automated Delivery Dispatch
                 </div>
                 <p>
-                  Upon approval, cryptographic HMAC tickets are minted and automatically emailed to{" "}
-                  <strong className="text-bone font-mono">{selectedOrder.customerEmail}</strong>.
-                  The order status in Firestore will transition to{" "}
+                  Upon approval, verified QR admission passes are minted and automatically emailed
+                  to <strong className="text-bone font-mono">{selectedOrder.customerEmail}</strong>.
+                  The order status will transition to{" "}
                   <span className="text-emerald-300 font-mono">approved</span>.
                 </p>
               </div>

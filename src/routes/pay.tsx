@@ -9,6 +9,11 @@ import {
 } from "@/components/brand/verve-logo";
 import { ArrowLeft, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  subscribeToOrder,
+  submitMpesaCodeToFirestore,
+  type FirestoreOrder,
+} from "@/lib/firebase/firestore-service";
 
 const paySearchSchema = z.object({
   orderId: z.string().optional(),
@@ -60,32 +65,9 @@ function PayRouteComponent() {
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [mpesaReceipt, setMpesaReceipt] = useState<string | null>(null);
   const [firstTicketCode, setFirstTicketCode] = useState<string | null>(null);
-  const [cooldownSeconds, setCooldownSeconds] = useState(0);
   const [secondsRemaining, setSecondsRemaining] = useState<number | undefined>(undefined);
 
   // Stable idempotency key initialization — preserved across all retries in this session
-  const [idempotencyKey, setIdempotencyKey] = useState<string>(() => search.idempotencyKey || "");
-
-  const idempotencyInitialized = useRef(false);
-
-  useEffect(() => {
-    if (!idempotencyInitialized.current) {
-      idempotencyInitialized.current = true;
-      if (!search.idempotencyKey) {
-        const newKey = `idemp_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-        setIdempotencyKey(newKey);
-      }
-    }
-  }, [search.idempotencyKey]);
-
-  // Cooldown countdown timer
-  useEffect(() => {
-    if (cooldownSeconds <= 0) return;
-    const timer = setInterval(() => {
-      setCooldownSeconds((s) => Math.max(0, s - 1));
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [cooldownSeconds]);
 
   // Expiration countdown timer
   useEffect(() => {
@@ -131,7 +113,7 @@ function PayRouteComponent() {
         console.warn("Could not verify tickets:", e);
       }
     },
-    [idempotencyKey],
+    [],
   );
 
   // Fetch authoritative order details
@@ -178,77 +160,90 @@ function PayRouteComponent() {
     loadOrder();
   }, [search.orderId, search.token, handleVerifyCompletedPayment]);
 
-  // Polling for Payment Status Verification
+  // Real-time Firestore Order Listener (instant updates when admin approves or status changes)
   useEffect(() => {
-    if (paymentPhase !== "waiting_for_pin" || !order) return;
+    if (!search.orderId) return;
 
-    const pollInterval = setInterval(async () => {
-      try {
-        const res = await fetch(
-          `/api/payments/status?order_id=${order.orderId}&token=${order.checkoutToken}`,
-          {
-            headers: {
-              Authorization: `Bearer ${order.checkoutToken}`,
-            },
-          },
-        );
+    const unsubscribe = subscribeToOrder(search.orderId, (liveOrder: FirestoreOrder | null) => {
+      if (!liveOrder) return;
 
-        if (!res.ok) return;
-
-        const data = await res.json();
-        if (!data.success) return;
-
-        if (data.orderStatus === "paid" || data.paymentStatus === "successful") {
-          setPaymentPhase("paid");
-          setMpesaReceipt(data.mpesaReceipt);
-          clearInterval(pollInterval);
-          handleVerifyCompletedPayment(order.orderId, order.checkoutToken, data.mpesaReceipt);
-        } else if (data.paymentStatus === "failed") {
-          setPaymentPhase("failed");
-          setPaymentError(data.errorMessage || "Payment was declined or cancelled on your phone.");
-          clearInterval(pollInterval);
-        } else if (data.paymentStatus === "timed_out") {
-          setPaymentPhase("timed_out");
-          setPaymentError("Payment prompt timed out without confirmation.");
-          clearInterval(pollInterval);
+      if (liveOrder.status === "approved" || liveOrder.status === "completed") {
+        setPaymentPhase("paid");
+        setMpesaReceipt(liveOrder.mpesaCode || "VERIFIED");
+        if (order?.orderId && order?.checkoutToken) {
+          handleVerifyCompletedPayment(order.orderId, order.checkoutToken, liveOrder.mpesaCode);
         }
-      } catch (err) {
-        console.warn("[Pay Polling] Status check error:", err);
+      } else if (liveOrder.status === "rejected") {
+        setPaymentPhase("failed");
+        setPaymentError(liveOrder.rejectionReason || "Payment was rejected during verification.");
       }
-    }, 2500);
+    });
 
-    return () => clearInterval(pollInterval);
-  }, [paymentPhase, order, handleVerifyCompletedPayment]);
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, [search.orderId, order?.orderId, order?.checkoutToken, handleVerifyCompletedPayment]);
 
-  // Trigger STK Push
-  const handleInitiateMpesaPayment = async () => {
+  const [isSubmittingCode, setIsSubmittingCode] = useState(false);
+
+  // Submit M-Pesa Confirmation SMS / 10-Digit Code
+  const handleSubmitMpesaCode = async (code: string, rawMessage?: string, email?: string) => {
     if (!order) return;
+    setIsSubmittingCode(true);
     setPaymentError(null);
-    setPaymentPhase("initiating");
+
+    const buyerEmail = (email || order.buyerEmail || "").trim().toLowerCase();
 
     try {
-      const res = await fetch("/api/payments/mpesa/stkpush", {
+      // 1. Submit to Backend API
+      const res = await fetch("/api/orders/submit-mpesa-code", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${order.checkoutToken}`,
+        },
         body: JSON.stringify({
           order_id: order.orderId,
-          checkout_token: order.checkoutToken,
+          mpesa_code: code,
+          mpesa_message: rawMessage || code,
+          buyer_email: buyerEmail,
+          token: order.checkoutToken,
         }),
       });
 
       const data = await res.json();
-
       if (!res.ok || !data.success) {
-        setPaymentError(data.message || "Could not initiate M-Pesa prompt. Please try again.");
-        setPaymentPhase("failed");
+        setPaymentError(
+          data.message || "Failed to submit M-Pesa code. Please check and try again.",
+        );
+        setIsSubmittingCode(false);
         return;
       }
 
-      setPaymentPhase("waiting_for_pin");
-      setCooldownSeconds(30);
+      // 2. Submit to Firestore to guarantee instant real-time reflection on Admin Dashboard
+      try {
+        await submitMpesaCodeToFirestore({
+          orderId: order.orderId,
+          orderNumber: order.orderNumber,
+          mpesaCode: code,
+          mpesaMessage: rawMessage || code,
+          customerEmail: buyerEmail,
+          customerName: order.buyerName,
+          customerPhone: order.buyerPhone,
+          ticketName: order.ticketName,
+          quantity: order.quantity,
+          totalKes: order.totalKes,
+        });
+      } catch (fErr) {
+        console.debug("[Firestore] Sync note:", fErr);
+      }
+
+      setMpesaReceipt(code);
+      setPaymentPhase("pending_approval");
     } catch {
-      setPaymentError("Network error sending M-Pesa payment prompt. Please try again.");
-      setPaymentPhase("failed");
+      setPaymentError("Network error submitting M-Pesa code. Please try again.");
+    } finally {
+      setIsSubmittingCode(false);
     }
   };
 
@@ -356,6 +351,7 @@ function PayRouteComponent() {
           orderNumber={order.orderNumber}
           buyerName={order.buyerName}
           buyerPhone={order.buyerPhone}
+          buyerEmail={order.buyerEmail}
           ticketName={order.ticketName}
           quantity={order.quantity}
           totalKes={order.totalKes}
@@ -363,9 +359,9 @@ function PayRouteComponent() {
           paymentError={paymentError}
           mpesaReceipt={mpesaReceipt}
           firstTicketCode={firstTicketCode}
-          cooldownSeconds={cooldownSeconds}
           secondsRemaining={secondsRemaining}
-          onInitiatePayment={handleInitiateMpesaPayment}
+          isSubmittingCode={isSubmittingCode}
+          onSubmitMpesaCode={handleSubmitMpesaCode}
           onCheckStatusAgain={handleCheckStatusAgain}
           onCancelReservation={handleCancelReservation}
         />

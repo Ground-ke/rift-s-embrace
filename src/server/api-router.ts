@@ -8,6 +8,7 @@ import {
   sendTicketConfirmationEmail,
   sendEventReminder24hEmail,
   sendRefundNoticeEmail,
+  sendBroadcastEmail,
   generateBookingConfirmationEmailHtml,
   generateEventReminder24hEmailHtml,
   generateRefundNoticeEmailHtml,
@@ -91,7 +92,10 @@ export async function handleApiRequest(request: Request): Promise<Response> {
           mpesaConfigured: Boolean(
             process.env.MPESA_CONSUMER_KEY && process.env.MPESA_CONSUMER_SECRET,
           ),
-          resendConfigured: Boolean(process.env.RESEND_API_KEY),
+          gmailSmtpConfigured: Boolean(
+            (process.env.SMTP_USER || process.env.GMAIL_USER) &&
+            (process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD),
+          ),
           whatsappConfigured: Boolean(
             process.env.WHATSAPP_API_KEY || process.env.TWILIO_AUTH_TOKEN,
           ),
@@ -279,45 +283,14 @@ export async function handleApiRequest(request: Request): Promise<Response> {
     }
 
     // --------------------------------------------------------------------------
-    // 5. POST /api/payments/mpesa/stkpush (Initiate Daraja STK Push)
+    // 5. POST /api/payments/mpesa/stkpush (STK Push Disabled - Message Reading Active)
     // --------------------------------------------------------------------------
     if (pathname === "/api/payments/mpesa/stkpush" && method === "POST") {
-      let body: Record<string, unknown>;
-      try {
-        body = (await request.json()) as Record<string, unknown>;
-      } catch {
-        return errorJson("Invalid JSON request body.", "INVALID_JSON", 400);
-      }
-
-      const orderId = String(body["order_id"] || body["orderId"] || "");
-      const checkoutToken = String(body["checkout_token"] || body["checkoutToken"] || "");
-
-      if (!orderId || !checkoutToken) {
-        return errorJson("order_id and checkout_token are required.", "INVALID_INPUT", 400);
-      }
-
-      const clientIp =
-        request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-        request.headers.get("x-real-ip") ||
-        "127.0.0.1";
-
-      const stkResult = await MpesaService.initiateStkPush({
-        orderId,
-        checkoutToken,
-        clientIp,
-      });
-
-      if (!stkResult.success) {
-        let status = 400;
-        if (stkResult.code === "UNAUTHORIZED") status = 401;
-        if (stkResult.code === "ORDER_EXPIRED") status = 410;
-        if (stkResult.code === "ALREADY_PAID") status = 409;
-        if (stkResult.code === "COOLDOWN_ACTIVE") status = 429;
-        if (stkResult.code === "DARAJA_ERROR") status = 502;
-        return json(stkResult, status);
-      }
-
-      return json(stkResult, 200);
+      return errorJson(
+        "Daraja STK Push has been retired. Please submit your M-Pesa transaction reference or SMS message to /api/orders/submit-mpesa-code.",
+        "STK_PUSH_RETIRED",
+        410,
+      );
     }
 
     // --------------------------------------------------------------------------
@@ -1469,6 +1442,184 @@ export async function handleApiRequest(request: Request): Promise<Response> {
         template,
         plaintext,
         html,
+      });
+    }
+
+    // --------------------------------------------------------------------------
+    // 30. GET /api/admin/audience (Aggregated Buyers & Subscribers Email List)
+    // --------------------------------------------------------------------------
+    if (pathname === "/api/admin/audience" && method === "GET") {
+      const buyers = OrderService.getTicketBuyersEmailList();
+      const tickets = TicketsServerService.getAllTickets();
+
+      // Aggregate counts
+      const totalPurchasers = buyers.length;
+      const totalTicketsIssued = tickets.length;
+      const checkedInCount = tickets.filter((t) => t.status === "used").length;
+
+      return json({
+        success: true,
+        summary: {
+          totalPurchasers,
+          totalTicketsIssued,
+          checkedInCount,
+        },
+        audience: buyers,
+      });
+    }
+
+    // --------------------------------------------------------------------------
+    // 31. POST /api/admin/audience/broadcast (Send Batch Broadcast Email)
+    // --------------------------------------------------------------------------
+    if (pathname === "/api/admin/audience/broadcast" && method === "POST") {
+      let rawBody: Record<string, unknown>;
+      try {
+        rawBody = (await request.json()) as Record<string, unknown>;
+      } catch {
+        return errorJson("Invalid JSON request body.", "INVALID_JSON", 400);
+      }
+
+      const body = sanitizeObject(rawBody);
+      const subject = String(body.subject || "").trim();
+      const headline = String(body.headline || "").trim() || subject;
+      const message = String(body.message || "").trim();
+      const targetFilter = String(body.targetFilter || "all"); // 'all' | 'approved' | 'tier:slug'
+      const ctaText = body.ctaText ? String(body.ctaText).trim() : undefined;
+      const ctaUrl = body.ctaUrl ? String(body.ctaUrl).trim() : undefined;
+      const testRecipient = body.testRecipient ? String(body.testRecipient).trim() : undefined;
+
+      if (!subject || !message) {
+        return errorJson("Subject and Message body are required.", "VALIDATION_ERROR", 400);
+      }
+
+      // If test recipient requested, dispatch single email
+      if (testRecipient) {
+        const testResult = await sendBroadcastEmail({
+          to: testRecipient,
+          subject: `[TEST PREVIEW] ${subject}`,
+          headline,
+          message,
+          ctaText,
+          ctaUrl,
+        });
+
+        return json({
+          success: testResult.success,
+          mode: "test",
+          recipientCount: 1,
+          testRecipient,
+          result: testResult,
+        });
+      }
+
+      // Collect target recipients based on filter
+      const allBuyers = OrderService.getTicketBuyersEmailList();
+      let recipients: string[] = [];
+
+      if (targetFilter === "all") {
+        recipients = allBuyers.map((b) => b.email);
+      } else if (targetFilter === "completed" || targetFilter === "approved") {
+        recipients = allBuyers
+          .filter((b) => b.status === "completed" || b.status === "approved")
+          .map((b) => b.email);
+      } else if (targetFilter.startsWith("tier:")) {
+        const tierSlug = targetFilter.replace("tier:", "").toLowerCase();
+        recipients = allBuyers
+          .filter((b) => (b.ticketTier || "").toLowerCase().includes(tierSlug))
+          .map((b) => b.email);
+      } else {
+        recipients = allBuyers.map((b) => b.email);
+      }
+
+      // Deduplicate emails
+      const uniqueRecipients = Array.from(new Set(recipients.filter(Boolean)));
+
+      if (uniqueRecipients.length === 0) {
+        return errorJson(
+          "No recipients matched the specified audience filter.",
+          "NO_RECIPIENTS",
+          400,
+        );
+      }
+
+      // Dispatch in batches or iterate
+      let successCount = 0;
+      let failureCount = 0;
+      const errors: string[] = [];
+
+      for (const email of uniqueRecipients) {
+        const res = await sendBroadcastEmail({
+          to: email,
+          subject,
+          headline,
+          message,
+          ctaText,
+          ctaUrl,
+        });
+
+        if (res.success) {
+          successCount++;
+        } else {
+          failureCount++;
+          if (res.error) errors.push(`${email}: ${res.error}`);
+        }
+      }
+
+      // Record in audit log if available
+      try {
+        AdminServerService.logActivity({
+          actor: "Lead Organizer",
+          action: "DISPATCH_EMAIL_BROADCAST",
+          details: `Sent broadcast "${subject}" to ${successCount} recipient(s). Filter: ${targetFilter}`,
+        });
+      } catch {
+        // ignore
+      }
+
+      return json({
+        success: true,
+        mode: "live_broadcast",
+        totalTargeted: uniqueRecipients.length,
+        dispatchedCount: successCount,
+        failedCount: failureCount,
+        errors: errors.slice(0, 5),
+      });
+    }
+
+    // --------------------------------------------------------------------------
+    // 32. POST /api/newsletter/subscribe (Public Audience Sign-Up)
+    // --------------------------------------------------------------------------
+    if (pathname === "/api/newsletter/subscribe" && method === "POST") {
+      let rawBody: Record<string, unknown>;
+      try {
+        rawBody = (await request.json()) as Record<string, unknown>;
+      } catch {
+        return errorJson("Invalid JSON request body.", "INVALID_JSON", 400);
+      }
+
+      const body = sanitizeObject(rawBody);
+      const email = String(body.email || "")
+        .trim()
+        .toLowerCase();
+      const name = String(body.name || "").trim();
+
+      if (!email || !email.includes("@")) {
+        return errorJson("Valid email address is required.", "INVALID_EMAIL", 400);
+      }
+
+      // Optionally send a welcome / lineup teaser email
+      await sendBroadcastEmail({
+        to: email,
+        subject: "Welcome to Verve & Co. — Hauntings of the Rift Updates",
+        headline: "You're on the Guest List for Rift Updates",
+        message: `Greetings ${name || "VIP"},\n\nYou have joined the exclusive dispatch list for Hauntings of the Rift (31 October 2026 at Top Cliff Lodge, Nakuru).\n\nYou will be first to receive secret artist lineup reveals, stage schedules, and priority flash-sale tickets.`,
+        ctaText: "Explore Event & Passes",
+        ctaUrl: "https://verve-hauntings.vercel.app/checkout",
+      });
+
+      return json({
+        success: true,
+        message: "Successfully subscribed to Hauntings of the Rift updates.",
       });
     }
 

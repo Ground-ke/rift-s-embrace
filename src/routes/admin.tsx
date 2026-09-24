@@ -22,12 +22,13 @@ import {
   Camera,
   MessageSquare,
   Mail,
+  Send,
+  ArrowRight,
   type LucideIcon,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { VerveIcon } from "@/components/brand/verve-logo";
 import { ProtectedAdminRoute } from "@/components/admin/protected-admin-route";
 import { TicketManagementTab } from "@/components/admin/ticket-management-tab";
@@ -38,8 +39,14 @@ import { NotificationCenterTab } from "@/components/admin/notification-center-ta
 import { AnalyticsLiveTab } from "@/components/admin/analytics-live-tab";
 import { ManualVerificationTab } from "@/components/admin/manual-verification-tab";
 import { GmailInboxTab } from "@/components/admin/gmail-inbox-tab";
+import { AudienceBroadcastTab } from "@/components/admin/email-broadcast-tab";
 import { useAdminAuth } from "@/lib/auth/admin-auth-context";
-import { subscribeToTickets, type FirestoreTicket } from "@/lib/firebase/firestore-service";
+import {
+  subscribeToTickets,
+  subscribeToPendingOrders,
+  type FirestoreTicket,
+  type FirestoreOrder,
+} from "@/lib/firebase/firestore-service";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/admin")({
@@ -78,12 +85,31 @@ function AdminPage() {
   );
 }
 
+// Safe label guard to prevent "undefined" or null from ever reaching the UI
+const getSafeLabel = (val: unknown, fallback = "0"): string => {
+  if (val === null || val === undefined) return fallback;
+  const s = String(val).trim();
+  if (!s || s === "undefined" || s === "null") return fallback;
+  return s;
+};
+
+interface NavItem {
+  id: string;
+  label: string;
+  icon: LucideIcon;
+  statusPill?: {
+    text: string;
+    variant: "green" | "amber" | "red" | "grey";
+  };
+}
+
 function AdminDashboardContent() {
-  const { user, role, signOut, switchTestRole } = useAdminAuth();
+  const { user, role, signOut } = useAdminAuth();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("overview");
   const [metrics, setMetrics] = useState<OverviewMetrics | null>(null);
   const [isLoadingMetrics, setIsLoadingMetrics] = useState(true);
+  const [pendingOrdersCount, setPendingOrdersCount] = useState<number>(0);
 
   // Fetch overview metrics from backend and subscribe to live Firestore updates
   const fetchMetrics = async () => {
@@ -93,12 +119,12 @@ function AdminDashboardContent() {
       const data = await res.json();
       if (data.success) {
         setMetrics({
-          totalRevenueKes: data.totalRevenueKes,
-          totalTicketsSold: data.totalTicketsSold,
-          checkedInCount: data.checkedInCount,
-          remainingCapacity: data.remainingCapacity,
-          activePromotionsCount: data.activePromotionsCount,
-          activeScannersCount: data.activeScannersCount,
+          totalRevenueKes: data.totalRevenueKes ?? 0,
+          totalTicketsSold: data.totalTicketsSold ?? 0,
+          checkedInCount: data.checkedInCount ?? 0,
+          remainingCapacity: data.remainingCapacity ?? 800,
+          activePromotionsCount: data.activePromotionsCount ?? 4,
+          activeScannersCount: data.activeScannersCount ?? 3,
           hourlySalesTrend: data.hourlySalesTrend || [],
         });
       }
@@ -109,10 +135,15 @@ function AdminDashboardContent() {
     }
   };
 
+  const handleManualRefresh = async () => {
+    await fetchMetrics();
+    toast.success("Dashboard metrics refreshed");
+  };
+
   useEffect(() => {
     fetchMetrics();
 
-    // Subscribe to live Firestore tickets to keep dashboard metrics perfectly in sync
+    // Subscribe to live Firestore tickets to keep dashboard metrics in sync
     const unsubscribeTickets = subscribeToTickets((liveTickets: FirestoreTicket[]) => {
       if (liveTickets && liveTickets.length > 0) {
         setMetrics((prev) => {
@@ -158,8 +189,14 @@ function AdminDashboardContent() {
       setIsLoadingMetrics(false);
     });
 
+    // Subscribe to live Firestore pending approval orders
+    const unsubscribePending = subscribeToPendingOrders((pendingOrders: FirestoreOrder[]) => {
+      setPendingOrdersCount(pendingOrders.length);
+    });
+
     return () => {
       if (unsubscribeTickets) unsubscribeTickets();
+      if (unsubscribePending) unsubscribePending();
     };
   }, []);
 
@@ -168,57 +205,74 @@ function AdminDashboardContent() {
     toast.info("Signed out of Admin Portal");
   };
 
-  const navItems: Array<{
-    id: string;
-    label: string;
-    icon: LucideIcon;
-    badge?: string;
-    isRoute?: string;
-  }> = [
-    { id: "overview", label: "Dashboard Overview", icon: LayoutDashboard },
+  // Operational status pills only — tech/vendor names removed from organizer UI
+  const navItems: NavItem[] = [
+    {
+      id: "overview",
+      label: "Dashboard Overview",
+      icon: LayoutDashboard,
+    },
     {
       id: "verifications",
       label: "M-Pesa Verification",
       icon: ShieldCheck,
-      badge: "Pending",
-    },
-    {
-      id: "analytics",
-      label: "Live Page Analytics",
-      icon: BarChart3,
-      badge: "Firebase",
-    },
-    {
-      id: "gmail",
-      label: "Official Gmail",
-      icon: Mail,
-      badge: "Google API",
+      statusPill:
+        pendingOrdersCount > 0
+          ? { text: `${pendingOrdersCount} Pending`, variant: "amber" }
+          : { text: "All Verified", variant: "green" },
     },
     {
       id: "tickets",
       label: "Ticket Management",
       icon: Ticket,
-      badge: metrics ? `${metrics.totalTicketsSold}` : undefined,
-    },
-    {
-      id: "notifications",
-      label: "Notification Gateway",
-      icon: MessageSquare,
-      badge: "WhatsApp & Email",
+      statusPill: {
+        text: `${metrics?.totalTicketsSold ?? 0} Sold`,
+        variant: "green",
+      },
     },
     {
       id: "promotions",
       label: "Promotion Codes",
       icon: Tag,
-      badge: metrics ? `${metrics.activePromotionsCount} Active` : undefined,
+      statusPill: {
+        text: `${metrics?.activePromotionsCount ?? 4} Active`,
+        variant: "green",
+      },
     },
     {
       id: "scanners",
-      label: "Gate Terminals",
+      label: "Check-in Devices",
       icon: QrCode,
-      badge: metrics ? `${metrics.activeScannersCount} Active` : undefined,
+      statusPill: {
+        text: `${metrics?.activeScannersCount ?? 3} Active`,
+        variant: "green",
+      },
     },
-    { id: "tiers", label: "Ticket Tiers & Pricing", icon: CircleDollarSign },
+    {
+      id: "tiers",
+      label: "Ticket Tiers & Pricing",
+      icon: CircleDollarSign,
+    },
+    {
+      id: "analytics",
+      label: "Page Analytics",
+      icon: BarChart3,
+    },
+    {
+      id: "gmail",
+      label: "Organizer Inbox",
+      icon: Mail,
+    },
+    {
+      id: "notifications",
+      label: "Notifications",
+      icon: MessageSquare,
+    },
+    {
+      id: "broadcast",
+      label: "Audience Announcements",
+      icon: Send,
+    },
   ];
 
   return (
@@ -227,18 +281,18 @@ function AdminDashboardContent() {
       <aside
         className={`${
           mobileNavOpen ? "fixed inset-0 z-50 block" : "hidden"
-        } border-r border-border/80 bg-card/95 p-5 backdrop-blur-md lg:static lg:block flex flex-col justify-between`}
+        } border-r border-border/80 bg-card/95 p-4 backdrop-blur-md lg:static lg:flex lg:flex-col lg:justify-between lg:min-h-screen`}
       >
-        <div>
+        <div className="space-y-6">
           {/* Top Brand Header */}
           <div className="flex items-center justify-between">
             <Link to="/" className="flex items-center gap-2.5" aria-label="Return to public site">
-              <VerveIcon className="w-7 h-7 text-amber-400" />
+              <VerveIcon className="size-7 text-amber-400" />
               <div>
                 <span className="font-display text-lg text-bone tracking-wide block leading-none">
                   Verve &amp; Co.
                 </span>
-                <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest mt-0.5 block">
+                <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest mt-1 block">
                   Admin Portal
                 </span>
               </div>
@@ -250,13 +304,13 @@ function AdminDashboardContent() {
               aria-label="Close admin menu"
               onClick={() => setMobileNavOpen(false)}
             >
-              <XCircle className="w-5 h-5 text-muted-foreground" />
+              <XCircle className="size-5 text-muted-foreground" />
             </Button>
           </div>
 
           {/* Navigation Links */}
-          <nav className="mt-8 space-y-1">
-            {navItems.map(({ id, label, icon: Icon, badge }) => {
+          <nav className="space-y-1">
+            {navItems.map(({ id, label, icon: Icon, statusPill }) => {
               const isActive = activeTab === id;
               return (
                 <button
@@ -270,75 +324,109 @@ function AdminDashboardContent() {
                       ? "bg-oxblood text-bone font-medium border-l-2 border-amber-400 shadow-sm"
                       : "text-muted-foreground hover:bg-background/80 hover:text-bone"
                   }`}
+                  aria-label={`Open ${label}`}
                 >
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
                     <Icon
-                      className={`w-4 h-4 ${isActive ? "text-amber-400" : "text-lavender/60"}`}
+                      className={`size-4 shrink-0 ${isActive ? "text-amber-400" : "text-lavender/60"}`}
                     />
-                    <span>{label}</span>
+                    <span className="truncate">{label}</span>
                   </div>
-                  {badge && (
-                    <span className="text-[10px] font-mono bg-background/80 px-1.5 py-0.5 rounded border border-border text-lavender">
-                      {badge}
+                  {statusPill && (
+                    <span
+                      className={`text-[10px] font-mono px-2 py-0.5 rounded-full border shrink-0 ${
+                        statusPill.variant === "green"
+                          ? "bg-emerald-950/60 border-emerald-500/40 text-emerald-300"
+                          : statusPill.variant === "amber"
+                            ? "bg-amber-950/60 border-amber-500/40 text-amber-300"
+                            : statusPill.variant === "red"
+                              ? "bg-red-950/60 border-red-500/40 text-red-300"
+                              : "bg-muted/30 border-border text-muted-foreground"
+                      }`}
+                    >
+                      {getSafeLabel(statusPill.text, "Active")}
                     </span>
                   )}
                 </button>
               );
             })}
 
-            <div className="pt-3 border-t border-border/50 space-y-1">
-              <Link to="/admin/scan" className="w-full block">
-                <button className="w-full flex items-center justify-between px-3.5 py-2 text-xs font-sans text-amber-300 bg-amber-950/30 hover:bg-amber-950/50 border border-amber-500/30 transition-colors">
-                  <div className="flex items-center gap-3">
-                    <Camera className="w-4 h-4 text-amber-400" />
+            {/* LIVE EVENT TOOLS GROUP */}
+            <div className="pt-4 mt-3 border-t border-border/50 space-y-1.5">
+              <div className="px-3 pb-1 text-[10px] font-mono uppercase tracking-widest text-muted-foreground font-semibold">
+                Live Event Tools
+              </div>
+
+              <Link to="/admin/scan" className="w-full block" aria-label="Open Live Gate Scanner">
+                <div className="w-full flex items-center justify-between px-3.5 py-2 text-xs font-sans text-amber-200 hover:bg-card/90 border-l-2 border-amber-400 bg-card/40 transition-colors">
+                  <div className="flex items-center gap-2.5">
+                    <Camera className="size-4 text-amber-400 shrink-0" />
                     <span>Live Gate Scanner</span>
                   </div>
-                  <span className="text-[10px] font-mono bg-amber-500/20 text-amber-300 px-1 rounded">
+                  <span className="text-[10px] font-mono text-amber-400 font-bold tracking-wider">
                     LIVE
                   </span>
-                </button>
+                </div>
               </Link>
 
-              <Link to="/admin/reconciliation" className="w-full block">
-                <button className="w-full flex items-center justify-between px-3.5 py-2 text-xs font-sans text-emerald-300 bg-emerald-950/20 hover:bg-emerald-950/40 border border-emerald-500/30 transition-colors">
-                  <div className="flex items-center gap-3">
-                    <Receipt className="w-4 h-4 text-emerald-400" />
-                    <span>Reconciliation</span>
+              <Link
+                to="/admin/reconciliation"
+                className="w-full block"
+                aria-label="Open Payment Reconciliation"
+              >
+                <div className="w-full flex items-center justify-between px-3.5 py-2 text-xs font-sans text-emerald-200 hover:bg-card/90 border-l-2 border-emerald-400 bg-card/40 transition-colors">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <Receipt className="size-4 text-emerald-400 shrink-0" />
+                    <div className="min-w-0">
+                      <span className="block truncate font-medium text-bone">Reconciliation</span>
+                      <span className="block text-[10px] text-muted-foreground font-mono truncate">
+                        M-Pesa payment auditing
+                      </span>
+                    </div>
                   </div>
-                  <span className="text-[10px] font-mono bg-emerald-500/20 text-emerald-300 px-1 rounded">
+                  <span className="text-[10px] font-mono text-emerald-400 font-bold tracking-wider shrink-0 ml-2">
                     AUDIT
                   </span>
-                </button>
+                </div>
               </Link>
             </div>
           </nav>
         </div>
 
-        {/* Bottom User Profile & Sign Out */}
-        <div className="mt-8 pt-4 border-t border-border/80 space-y-3">
-          <div className="flex items-center justify-between text-xs font-mono">
-            <span className="text-muted-foreground truncate">{user?.email}</span>
+        {/* Bottom User Profile & Public Site CTA */}
+        <div className="pt-4 border-t border-border/80 space-y-3 mt-4">
+          <div className="flex items-center justify-between text-xs font-mono px-1">
+            <span className="text-muted-foreground truncate" title={user?.email || "Organizer"}>
+              {user?.email || "Organizer"}
+            </span>
           </div>
 
           <div className="flex items-center gap-2">
-            <Link to="/" className="flex-1">
+            <a
+              href="/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex-1"
+              aria-label="Open public event site in new tab"
+            >
               <Button
                 variant="outline"
                 size="sm"
-                className="w-full text-[11px] font-mono border-border text-muted-foreground hover:text-bone h-8"
+                className="w-full text-[11px] font-mono border-border text-muted-foreground hover:text-bone hover:border-amber-400/50 h-8 transition-colors flex items-center justify-center gap-1.5"
               >
-                <ExternalLink className="w-3 h-3 mr-1.5" />
+                <ExternalLink className="size-3" />
                 Public Site
               </Button>
-            </Link>
+            </a>
             <Button
               variant="ghost"
               size="sm"
               onClick={handleSignOut}
-              className="text-[11px] font-mono text-red-400/80 hover:text-red-300 hover:bg-red-950/40 h-8 px-2"
+              className="text-[11px] font-mono text-red-400/80 hover:text-red-300 hover:bg-red-950/40 h-8 px-2.5 transition-colors"
               title="Sign Out"
+              aria-label="Sign out of Admin Portal"
             >
-              <LogOut className="w-3.5 h-3.5" />
+              <LogOut className="size-3.5" />
             </Button>
           </div>
         </div>
@@ -356,7 +444,7 @@ function AdminDashboardContent() {
               aria-label="Open admin menu"
               onClick={() => setMobileNavOpen(true)}
             >
-              <Menu className="w-5 h-5 text-bone" />
+              <Menu className="size-5 text-bone" />
             </Button>
 
             <div className="min-w-0">
@@ -374,30 +462,35 @@ function AdminDashboardContent() {
             </div>
           </div>
 
-          {/* Right Header: Explicit Role Indicator & Fast Tester */}
+          {/* Right Header: Role & Interactive Refresh */}
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-            {/* LIVE FIRESTORE SYNC BADGE */}
+            {/* Live Firestore Sync Status */}
             <div className="flex items-center gap-1.5 border border-emerald-500/40 bg-emerald-950/40 px-2 py-1 text-emerald-400 font-mono text-[11px]">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              <span className="hidden sm:inline font-semibold">LIVE SYNC ACTIVE</span>
+              <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="hidden sm:inline font-semibold">LIVE SYNC</span>
             </div>
 
-            {/* EXPLICIT ROLE INDICATOR BADGE */}
-            <div className="flex items-center gap-1.5 border border-amber-500/50 bg-amber-950/40 px-2.5 py-1 rounded-none shadow-[0_0_12px_rgba(245,158,11,0.15)]">
-              <ShieldCheck className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
+            {/* Role Badge */}
+            <div className="flex items-center gap-1.5 border border-amber-500/50 bg-amber-950/40 px-2.5 py-1">
+              <ShieldCheck className="size-3.5 text-amber-400 animate-pulse" />
               <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-amber-300">
                 ROLE: {role?.toUpperCase() || "ADMIN"}
               </span>
             </div>
 
+            {/* Interactive Refresh Button with Spin State and Feedback */}
             <Button
               variant="outline"
               size="sm"
-              onClick={fetchMetrics}
-              className="border-border text-lavender hover:text-bone text-xs h-8 px-2.5 hidden sm:flex items-center"
-              title="Refresh Dashboard"
+              onClick={handleManualRefresh}
+              className="border-border text-lavender hover:text-bone text-xs h-8 px-2.5 hidden sm:flex items-center transition-colors"
+              title="Refresh Dashboard Metrics"
+              aria-label="Refresh dashboard metrics"
+              disabled={isLoadingMetrics}
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${isLoadingMetrics ? "animate-spin" : ""}`} />
+              <RefreshCw
+                className={`size-3.5 ${isLoadingMetrics ? "animate-spin text-amber-400" : ""}`}
+              />
             </Button>
           </div>
         </header>
@@ -407,85 +500,124 @@ function AdminDashboardContent() {
           {/* TAB 1: OVERVIEW & REAL-TIME METRICS */}
           {activeTab === "overview" && (
             <div className="space-y-6">
-              {/* Stat Metric Cards */}
+              {/* PENDING APPROVALS ALERT BANNER */}
+              {pendingOrdersCount > 0 && (
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border border-amber-500/60 bg-amber-950/40 p-4">
+                  <div className="flex items-center gap-3">
+                    <div className="grid size-10 place-items-center bg-amber-500/20 text-amber-400 border border-amber-500/40 shrink-0">
+                      <ShieldCheck className="size-5 animate-pulse" />
+                    </div>
+                    <div>
+                      <h3 className="font-display text-base text-amber-300">
+                        {pendingOrdersCount} M-Pesa Transaction{pendingOrdersCount > 1 ? "s" : ""}{" "}
+                        Awaiting Verification
+                      </h3>
+                      <p className="text-xs text-bone-muted">
+                        Attendees submitted their M-Pesa codes or messages. Verify and issue digital
+                        passes.
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    variant="event"
+                    size="sm"
+                    onClick={() => setActiveTab("verifications")}
+                    className="shrink-0 font-mono text-xs"
+                    aria-label="Open M-Pesa Verification Queue"
+                  >
+                    Open Verification Queue &rarr;
+                  </Button>
+                </div>
+              )}
+
+              {/* PRIMARY METRIC CARDS — UNIFORM TYPOGRAPHY & DELIBERATE EMPTY STATES */}
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                <div className="border border-border bg-card p-5 space-y-2">
+                {/* 1. Gross Revenue */}
+                <div className="border border-border bg-card p-4 sm:p-5 space-y-2">
                   <div className="flex items-center justify-between text-muted-foreground">
                     <span className="text-xs font-mono uppercase tracking-wider">
                       Gross Revenue
                     </span>
-                    <CircleDollarSign className="w-4 h-4 text-amber-400" />
+                    <CircleDollarSign className="size-5 text-amber-400 opacity-90 shrink-0" />
                   </div>
-                  <div className="font-display text-3xl text-bone">
-                    KES {metrics ? metrics.totalRevenueKes.toLocaleString() : "—"}
+                  <div className="font-display text-3xl text-bone tracking-tight">
+                    KES {(metrics?.totalRevenueKes ?? 0).toLocaleString()}
                   </div>
                   <p className="text-[11px] text-muted-foreground font-mono">
-                    Direct M-Pesa Daraja 2.0 Settlement
+                    {(metrics?.totalRevenueKes ?? 0) > 0
+                      ? "Direct M-Pesa Paybill (522533)"
+                      : "No revenue collected yet"}
                   </p>
                 </div>
 
-                <div className="border border-border bg-card p-5 space-y-2">
+                {/* 2. Passes Issued */}
+                <div className="border border-border bg-card p-4 sm:p-5 space-y-2">
                   <div className="flex items-center justify-between text-muted-foreground">
                     <span className="text-xs font-mono uppercase tracking-wider">
                       Passes Issued
                     </span>
-                    <Ticket className="w-4 h-4 text-lavender" />
+                    <Ticket className="size-5 text-lavender opacity-90 shrink-0" />
                   </div>
-                  <div className="font-display text-3xl text-bone">
-                    {metrics ? metrics.totalTicketsSold : "—"} Passes
+                  <div className="font-display text-3xl text-bone tracking-tight">
+                    {metrics?.totalTicketsSold ?? 0}
                   </div>
                   <p className="text-[11px] text-muted-foreground font-mono">
-                    Cryptographic HMAC QR Passes
+                    {(metrics?.totalTicketsSold ?? 0) > 0
+                      ? "Verified QR passes"
+                      : "No passes issued yet"}
                   </p>
                 </div>
 
-                <div className="border border-green-500/30 bg-card p-5 space-y-2">
-                  <div className="flex items-center justify-between text-green-400">
+                {/* 3. Gate Check-ins */}
+                <div className="border border-border bg-card p-4 sm:p-5 space-y-2">
+                  <div className="flex items-center justify-between text-muted-foreground">
                     <span className="text-xs font-mono uppercase tracking-wider">
                       Gate Check-ins
                     </span>
-                    <CheckCircle2 className="w-4 h-4 text-green-400" />
+                    <CheckCircle2 className="size-5 text-emerald-400 opacity-90 shrink-0" />
                   </div>
-                  <div className="font-display text-3xl text-green-300">
-                    {metrics ? metrics.checkedInCount : "—"} /{" "}
-                    {metrics ? metrics.totalTicketsSold : "—"}
+                  <div className="font-display text-3xl text-bone tracking-tight">
+                    {metrics?.checkedInCount ?? 0} / {metrics?.totalTicketsSold ?? 0}
                   </div>
                   <p className="text-[11px] text-muted-foreground font-mono">
-                    Admitted at Security Perimeters
+                    {(metrics?.checkedInCount ?? 0) > 0
+                      ? "Checked in at the gate"
+                      : "No check-ins recorded yet"}
                   </p>
                 </div>
 
-                <div className="border border-border bg-card p-5 space-y-2">
+                {/* 4. Available Capacity */}
+                <div className="border border-border bg-card p-4 sm:p-5 space-y-2">
                   <div className="flex items-center justify-between text-muted-foreground">
                     <span className="text-xs font-mono uppercase tracking-wider">
                       Available Capacity
                     </span>
-                    <Users className="w-4 h-4 text-amber-400" />
+                    <Users className="size-5 text-amber-400 opacity-90 shrink-0" />
                   </div>
-                  <div className="font-display text-3xl text-bone">
-                    {metrics ? metrics.remainingCapacity : "—"} / 1,200
+                  <div className="font-display text-3xl text-bone tracking-tight">
+                    {metrics?.remainingCapacity ?? 800} / 800
                   </div>
                   <p className="text-[11px] text-muted-foreground font-mono">
-                    Max Venue Fire Marshall Limit
+                    Venue capacity (800 max)
                   </p>
                 </div>
               </div>
 
-              {/* Sales Velocity Chart */}
-              <div className="border border-border bg-card p-5 space-y-4">
+              {/* SALES VELOCITY CHART */}
+              <div className="border border-border bg-card p-4 sm:p-5 space-y-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h2 className="font-display text-lg text-bone flex items-center gap-2">
-                      <TrendingUp className="w-4 h-4 text-amber-400" />
+                    <h2 className="font-display text-base sm:text-lg text-bone flex items-center gap-2">
+                      <TrendingUp className="size-4 text-amber-400" />
                       Hourly Ticket Sales Trend
                     </h2>
                     <p className="text-xs text-muted-foreground font-mono mt-0.5">
-                      Live checkout velocity on 31 October 2026
+                      Sales activity for 31 October 2026
                     </p>
                   </div>
-                  <Badge variant="outline" className="border-border text-[10px] font-mono">
-                    Real-Time
-                  </Badge>
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded border border-border text-muted-foreground">
+                    Hourly Velocity
+                  </span>
                 </div>
 
                 {metrics?.hourlySalesTrend && metrics.hourlySalesTrend.length > 0 ? (
@@ -506,7 +638,7 @@ function AdminDashboardContent() {
                             KES {item.sales.toLocaleString()} ({item.count} tickets)
                           </div>
                           <div
-                            className="w-full bg-gradient-to-t from-oxblood via-oxblood/80 to-amber-500/80 hover:to-amber-400 transition-all rounded-t-none"
+                            className="w-full bg-gradient-to-t from-oxblood via-oxblood/80 to-amber-500/80 hover:to-amber-400 transition-all"
                             style={{ height: `${heightPercent}%` }}
                           />
                           <span className="text-[9px] font-mono text-muted-foreground">
@@ -517,43 +649,136 @@ function AdminDashboardContent() {
                     })}
                   </div>
                 ) : (
-                  <div className="mt-6 flex h-48 items-center justify-center border-b border-l border-border/80 px-4 pb-2 text-center text-xs font-mono text-muted-foreground">
-                    <div className="space-y-2">
-                      <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse mx-auto" />
-                      <p className="text-bone font-medium">Real-Time Telemetry Connected</p>
+                  <div className="mt-6 flex h-44 items-center justify-center border-b border-l border-border/80 px-4 pb-2 text-center text-xs font-mono text-muted-foreground">
+                    <div className="space-y-1.5">
+                      <div className="size-2 rounded-full bg-emerald-400 animate-pulse mx-auto" />
+                      <p className="text-bone font-medium">No sales recorded yet</p>
                       <p className="text-[11px] text-muted-foreground max-w-sm">
-                        Hourly checkout velocity will graph here automatically as passes are issued
-                        and approved.
+                        Hourly checkout velocity will graph here automatically as passes are issued.
                       </p>
                     </div>
                   </div>
                 )}
               </div>
+
+              {/* LIVE OPERATIONS QUICK ACTIONS — TIGHTENS MOBILE VIEWPORT */}
+              <div className="border border-border bg-card p-4 sm:p-5 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-display text-base text-bone flex items-center gap-2">
+                    <ShieldCheck className="size-4 text-amber-400" />
+                    Event Operations Hub
+                  </h3>
+                  <span className="text-[10px] font-mono text-muted-foreground">
+                    Quick Dispatch
+                  </span>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  <button
+                    onClick={() => setActiveTab("verifications")}
+                    className="text-left p-3.5 border border-border/80 bg-background/50 hover:bg-background hover:border-amber-400/60 transition-colors group"
+                    aria-label="Open M-Pesa Verifications Queue"
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-mono text-muted-foreground group-hover:text-amber-300">
+                        M-Pesa Queue
+                      </span>
+                      <ArrowRight className="size-3.5 text-muted-foreground group-hover:text-amber-400 group-hover:translate-x-0.5 transition-transform" />
+                    </div>
+                    <p className="text-sm font-semibold text-bone">
+                      {pendingOrdersCount > 0
+                        ? `${pendingOrdersCount} Awaiting Review`
+                        : "All Clear"}
+                    </p>
+                    <span className="text-[10px] font-mono text-muted-foreground block mt-0.5">
+                      Audit attendee SMS receipts
+                    </span>
+                  </button>
+
+                  <Link
+                    to="/admin/scan"
+                    className="block p-3.5 border border-border/80 bg-background/50 hover:bg-background hover:border-amber-400/60 transition-colors group"
+                    aria-label="Launch Live Gate Scanner"
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-mono text-muted-foreground group-hover:text-amber-300">
+                        Gate Scanner
+                      </span>
+                      <ArrowRight className="size-3.5 text-muted-foreground group-hover:text-amber-400 group-hover:translate-x-0.5 transition-transform" />
+                    </div>
+                    <p className="text-sm font-semibold text-bone">
+                      {metrics?.checkedInCount ?? 0} Admitted
+                    </p>
+                    <span className="text-[10px] font-mono text-muted-foreground block mt-0.5">
+                      Fast gate check-in
+                    </span>
+                  </Link>
+
+                  <button
+                    onClick={() => setActiveTab("tickets")}
+                    className="text-left p-3.5 border border-border/80 bg-background/50 hover:bg-background hover:border-amber-400/60 transition-colors group"
+                    aria-label="Open Ticket Management"
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-mono text-muted-foreground group-hover:text-amber-300">
+                        Ticket Registry
+                      </span>
+                      <ArrowRight className="size-3.5 text-muted-foreground group-hover:text-amber-400 group-hover:translate-x-0.5 transition-transform" />
+                    </div>
+                    <p className="text-sm font-semibold text-bone">
+                      {metrics?.totalTicketsSold ?? 0} Passes Active
+                    </p>
+                    <span className="text-[10px] font-mono text-muted-foreground block mt-0.5">
+                      Manage attendee entries
+                    </span>
+                  </button>
+
+                  <Link
+                    to="/admin/reconciliation"
+                    className="block p-3.5 border border-border/80 bg-background/50 hover:bg-background hover:border-emerald-400/60 transition-colors group"
+                    aria-label="Open Payment Reconciliation"
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-mono text-muted-foreground group-hover:text-emerald-300">
+                        Reconciliation
+                      </span>
+                      <ArrowRight className="size-3.5 text-muted-foreground group-hover:text-emerald-400 group-hover:translate-x-0.5 transition-transform" />
+                    </div>
+                    <p className="text-sm font-semibold text-bone">Audited Ledger</p>
+                    <span className="text-[10px] font-mono text-muted-foreground block mt-0.5">
+                      Bank &amp; Paybill settlement
+                    </span>
+                  </Link>
+                </div>
+              </div>
             </div>
           )}
 
-          {/* TAB: REAL-TIME PAGE ANALYTICS (FIREBASE) */}
+          {/* TAB: PAGE ANALYTICS */}
           {activeTab === "analytics" && <AnalyticsLiveTab />}
 
-          {/* TAB: OFFICIAL GMAIL WORKSPACE INTEGRATION */}
+          {/* TAB: ORGANIZER INBOX */}
           {activeTab === "gmail" && <GmailInboxTab />}
 
-          {/* TAB: MANUAL M-PESA APPROVAL QUEUE */}
+          {/* TAB: M-PESA APPROVAL QUEUE */}
           {activeTab === "verifications" && <ManualVerificationTab />}
 
-          {/* TAB 2: TICKET MANAGEMENT */}
+          {/* TAB: TICKET MANAGEMENT */}
           {activeTab === "tickets" && <TicketManagementTab />}
 
-          {/* TAB 3: NOTIFICATION GATEWAY */}
+          {/* TAB: NOTIFICATIONS */}
           {activeTab === "notifications" && <NotificationCenterTab />}
 
-          {/* TAB 4: PROMOTION MANAGEMENT */}
+          {/* TAB: AUDIENCE ANNOUNCEMENTS */}
+          {activeTab === "broadcast" && <AudienceBroadcastTab />}
+
+          {/* TAB: PROMOTION MANAGEMENT */}
           {activeTab === "promotions" && <PromotionManagementTab />}
 
-          {/* TAB 5: SCANNERS & GATE MANAGEMENT */}
+          {/* TAB: CHECK-IN DEVICES */}
           {activeTab === "scanners" && <ScannerManagementTab />}
 
-          {/* TAB 6: TICKET TIERS & PRICING */}
+          {/* TAB: TICKET TIERS & PRICING */}
           {activeTab === "tiers" && <TicketTiersPricingTab />}
         </main>
       </div>

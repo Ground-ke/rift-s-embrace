@@ -225,8 +225,8 @@ export function ScannerManagementTab() {
             <h3 className="font-display text-lg text-bone">Live Gate Scanner Terminal</h3>
           </div>
           <p className="text-xs text-muted-foreground font-sans">
-            Validate ticket barcodes, check cryptographic HMAC signatures, and detect duplicate
-            check-ins.
+            Scan attendee passes, verify ticket authenticity, and prevent duplicate check-ins at the
+            gate.
           </p>
 
           <form onSubmit={handleSimulateScan} className="space-y-3">

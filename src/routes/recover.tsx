@@ -416,6 +416,20 @@ function RecoverRouteComponent() {
             </div>
           </div>
         )}
+        {/* Footer legal links */}
+        <div className="pt-6 border-t border-border/40 text-center text-xs font-mono text-muted-foreground flex justify-center gap-4">
+          <Link to="/terms" className="hover:text-bone underline">
+            Terms &amp; Conditions
+          </Link>
+          <span>·</span>
+          <Link to="/privacy" className="hover:text-bone underline">
+            Privacy Policy
+          </Link>
+          <span>·</span>
+          <a href="mailto:verve.n.co.ke@gmail.com" className="hover:text-bone underline">
+            Support
+          </a>
+        </div>
       </div>
     </div>
   );

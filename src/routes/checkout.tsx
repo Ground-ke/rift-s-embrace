@@ -471,9 +471,17 @@ function Checkout() {
       try {
         await submitMpesaCodeToFirestore({
           orderId: activeOrder.orderId,
+          orderNumber: activeOrder.orderNumber,
           mpesaCode: codeToSubmit,
           mpesaMessage: cleanInput,
           customerEmail: buyerEmail.trim().toLowerCase(),
+          customerName: buyerName.trim(),
+          customerPhone: phoneValidation?.normalized || activeOrder.buyerPhone,
+          ticketTypeId: activeOrder.ticketTypeId,
+          ticketName: activeOrder.ticketName,
+          admitsCount: activeOrder.admitsCount,
+          quantity: activeOrder.quantity,
+          totalKes: activeOrder.totalKes,
         });
       } catch (fErr) {
         console.debug("[Firestore] Sync note:", fErr);
@@ -827,6 +835,37 @@ function Checkout() {
                     Upon clicking reserve, your {quantity} {choice.name}{" "}
                     {choice.admitsCount > 1 ? "bundle" : "pass"} will be locked in the inventory
                     engine for exactly 10 minutes.
+                  </div>
+
+                  {/* DATA PROTECTION & TERMS CONSENT */}
+                  <div className="border border-border/80 bg-background/50 p-3.5 space-y-1.5 text-xs text-muted-foreground">
+                    <div className="flex items-center gap-1.5 font-mono text-[11px] text-amber-300 font-semibold uppercase tracking-wider">
+                      <LockKeyhole className="size-3.5 text-amber-400" />
+                      Data Protection &amp; Terms Agreement
+                    </div>
+                    <p className="text-bone-muted leading-relaxed">
+                      By proceeding with this reservation, you confirm you are 18+ and agree to the{" "}
+                      <Link
+                        to="/terms"
+                        target="_blank"
+                        className="text-amber-400 hover:text-amber-300 underline font-medium"
+                      >
+                        Terms of Entry
+                      </Link>{" "}
+                      and{" "}
+                      <Link
+                        to="/privacy"
+                        target="_blank"
+                        className="text-amber-400 hover:text-amber-300 underline font-medium"
+                      >
+                        Privacy Policy
+                      </Link>
+                      .
+                    </p>
+                    <p className="text-[11px] text-muted-foreground font-mono">
+                      Under KDPA 2019, your details are used solely to issue cryptographic admission
+                      passes and reconcile Safaricom M-Pesa. Data is never sold.
+                    </p>
                   </div>
 
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
@@ -1463,6 +1502,25 @@ function Checkout() {
           </aside>
         </div>
       </main>
+
+      <footer className="border-t border-border/80 bg-card/30 px-4 py-6 text-center text-xs font-mono text-muted-foreground mt-12">
+        <div className="mx-auto max-w-5xl flex flex-wrap items-center justify-between gap-4">
+          <p>&copy; 2026 Verve &amp; Co. · Official Ticketing Portal</p>
+          <div className="flex items-center gap-4 text-lavender">
+            <Link to="/terms" className="hover:text-bone underline">
+              Terms &amp; Conditions
+            </Link>
+            <span>·</span>
+            <Link to="/privacy" className="hover:text-bone underline">
+              Privacy Policy
+            </Link>
+            <span>·</span>
+            <Link to="/recover" className="hover:text-bone underline">
+              Ticket Recovery
+            </Link>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }

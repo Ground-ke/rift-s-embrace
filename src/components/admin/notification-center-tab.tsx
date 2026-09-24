@@ -165,18 +165,17 @@ export function NotificationCenterTab() {
         </div>
 
         <div className="flex items-center gap-2 text-xs font-mono text-muted-foreground bg-background/60 px-3 py-1.5 border border-border">
-          <span>Need official Google Workspace mail?</span>
+          <span>Need bulk broadcast?</span>
           <a
             href="/admin"
             onClick={(e) => {
               e.preventDefault();
-              // switch to gmail tab if available
-              const tab = document.querySelector('[data-tab="gmail"]') as HTMLElement | null;
+              const tab = document.querySelector('[data-tab="broadcast"]') as HTMLElement | null;
               if (tab) tab.click();
             }}
             className="text-amber-400 hover:text-amber-300 underline font-semibold flex items-center gap-1"
           >
-            Official Gmail Tab &rarr;
+            Email List &amp; Broadcast Tab &rarr;
           </a>
         </div>
       </div>
@@ -213,7 +212,7 @@ export function NotificationCenterTab() {
                 }`}
               >
                 <Mail className="w-4 h-4 text-amber-400" />
-                Email (Resend/SMTP)
+                Email (Gmail SMTP)
               </button>
             </div>
           </div>

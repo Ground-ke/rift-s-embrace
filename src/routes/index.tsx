@@ -11,6 +11,8 @@ import {
   Sparkles,
   Users,
   Volume2,
+  Mail,
+  CheckCircle2,
   type LucideIcon,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -22,12 +24,14 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Sheet, SheetClose, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Countdown } from "@/components/event/countdown";
 import { ShareActions } from "@/components/event/share-actions";
 import { TicketCard, type Ticket } from "@/components/event/ticket-card";
 import { VerveLogo, VerveIcon, VervePresenterBadge } from "@/components/brand/verve-logo";
 import { generateEventJsonLd } from "@/lib/seo/schema-event";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -193,6 +197,89 @@ interface PublicPromotion {
   name?: string;
   discountType: "percentage" | "fixed";
   discountValue: number;
+}
+
+function NewsletterSubscribeForm() {
+  const [email, setEmail] = useState("");
+  const [name, setName] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email.trim() || !email.includes("@")) {
+      toast.error("Please enter a valid email address.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const res = await fetch("/api/newsletter/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim(), name: name.trim() }),
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        setIsSuccess(true);
+        toast.success("You are now on the official guest list!", {
+          description: "Check your inbox for a confirmation from Verve & Co.",
+        });
+      } else {
+        toast.error("Subscription failed", { description: data.error });
+      }
+    } catch {
+      toast.error("Network error. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  if (isSuccess) {
+    return (
+      <div className="p-4 border border-emerald-500/40 bg-emerald-500/10 rounded-lg max-w-md mx-auto text-emerald-300 text-sm flex items-center justify-center gap-2">
+        <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+        <span>Confirmed! You will receive our next lineup &amp; gate dispatch.</span>
+      </div>
+    );
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-2 max-w-lg mx-auto pt-2">
+      <Input
+        type="text"
+        placeholder="Your Name (Optional)"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        className="bg-card/80 border-border text-bone text-sm sm:w-40"
+      />
+      <Input
+        type="email"
+        placeholder="Enter your email..."
+        required
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        className="bg-card/80 border-border text-bone text-sm flex-1"
+      />
+      <Button
+        type="submit"
+        disabled={isSubmitting}
+        variant="event"
+        className="shrink-0 font-mono text-xs uppercase tracking-wider"
+      >
+        {isSubmitting ? "Subscribing..." : "Join List"}
+      </Button>
+      <div className="w-full text-center sm:text-left text-[11px] text-muted-foreground font-mono mt-1 sm:col-span-3">
+        By joining, you agree to receive event dispatches from Verve &amp; Co. We respect your
+        inbox. Read our{" "}
+        <Link to="/privacy" className="text-amber-400 hover:text-amber-300 underline">
+          Privacy Policy
+        </Link>
+        .
+      </div>
+    </form>
+  );
 }
 
 function Index() {
@@ -465,19 +552,38 @@ function Index() {
               Know before you go
             </p>
             <h2 className="mt-3 text-5xl text-bone">Questions from the crypt.</h2>
+            <p className="mt-4 text-sm text-bone-muted leading-relaxed">
+              Everything you need to know about passes, gate check-in, parking at Top Cliff Lodge,
+              and costume guidelines.
+            </p>
           </div>
-          <Accordion type="single" collapsible>
-            {faqs.map(([q, a]) => (
-              <AccordionItem value={q} key={q}>
-                <AccordionTrigger className="py-6 text-left text-lg text-bone hover:no-underline">
-                  {q}
-                </AccordionTrigger>
-                <AccordionContent className="pb-6 text-base text-muted-foreground">
-                  {a}
-                </AccordionContent>
-              </AccordionItem>
-            ))}
-          </Accordion>
+
+          <div>
+            <Accordion type="single" collapsible>
+              {faqs.map(([q, a]) => (
+                <AccordionItem value={q} key={q}>
+                  <AccordionTrigger className="py-6 text-left text-lg text-bone hover:no-underline">
+                    {q}
+                  </AccordionTrigger>
+                  <AccordionContent className="pb-6 text-base text-muted-foreground">
+                    {a}
+                  </AccordionContent>
+                </AccordionItem>
+              ))}
+            </Accordion>
+
+            {/* Bottom of Accordion direct write link */}
+            <div className="mt-6 pt-4 border-t border-border/50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-muted-foreground font-mono">
+              <span>Still have an unlisted question?</span>
+              <a
+                href="mailto:verve.n.co.ke@gmail.com?subject=Question%20about%20Hauntings%20of%20the%20Rift%202026&body=Hello%20Verve%20%26%20Co.%20team,%0D%0A%0D%0AMy%20question%20is:%20"
+                className="text-amber-400 hover:text-amber-300 flex items-center gap-1.5 font-medium underline-offset-4 hover:underline"
+              >
+                <Mail className="size-3.5" />
+                Write to Verve &amp; Co. (verve.n.co.ke@gmail.com) &rarr;
+              </a>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -506,6 +612,23 @@ function Index() {
           </Button>
         </div>
       </section>
+
+      {/* EMAIL LIST & GUEST UPDATES SECTION */}
+      <section className="border-t border-border/80 bg-oxblood-darker/60 px-4 py-16 sm:px-6">
+        <div className="mx-auto max-w-3xl text-center space-y-4">
+          <h3 className="font-display text-3xl sm:text-4xl text-bone">
+            Join the Rift Dispatch List
+          </h3>
+
+          <p className="text-sm sm:text-base text-bone-muted max-w-xl mx-auto">
+            Be the first to receive secret artist lineup reveals, gate arrival updates, and
+            exclusive flash releases directly in your inbox.
+          </p>
+
+          <NewsletterSubscribeForm />
+        </div>
+      </section>
+
       <footer className="border-t border-border bg-card/40 px-4 py-12">
         <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-6 sm:flex-row">
           <div className="flex flex-col sm:flex-row items-center gap-4 text-center sm:text-left">
@@ -515,16 +638,31 @@ function Index() {
               Verve &amp; Co. presents Hauntings of the Rift.
             </p>
           </div>
-          <div className="flex items-center gap-4 text-xs text-muted-foreground">
-            <Link to="/recover" className="text-bone-muted hover:text-bone underline">
+          <div className="flex flex-wrap items-center justify-center sm:justify-end gap-x-4 gap-y-2 text-xs text-muted-foreground">
+            <Link
+              to="/terms"
+              className="text-bone-muted hover:text-bone underline underline-offset-2"
+            >
+              Terms &amp; Conditions
+            </Link>
+            <span>·</span>
+            <Link
+              to="/privacy"
+              className="text-bone-muted hover:text-bone underline underline-offset-2"
+            >
+              Privacy Policy
+            </Link>
+            <span>·</span>
+            <Link
+              to="/recover"
+              className="text-bone-muted hover:text-bone underline underline-offset-2"
+            >
               Find / Recover Ticket
             </Link>
             <span>·</span>
-            <span>31 October 2026</span>
-            <span>·</span>
-            <span>Top Cliff Lodge, Nakuru</span>
-            <span>·</span>
-            <span className="border border-border/80 px-1.5 py-0.5 font-mono text-[10px]">18+</span>
+            <span className="border border-border/80 px-1.5 py-0.5 font-mono text-[10px] text-amber-300">
+              18+ ONLY
+            </span>
           </div>
         </div>
       </footer>

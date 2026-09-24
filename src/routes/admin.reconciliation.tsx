@@ -297,7 +297,7 @@ export function AdminReconciliationPage() {
             <div className="text-2xl font-bold text-amber-400 tracking-tight">
               KES {totals.platformFeesKes.toLocaleString()}
             </div>
-            <div className="text-xs text-slate-400 mt-2">Daraja B2C processing fees</div>
+            <div className="text-xs text-slate-400 mt-2">M-Pesa Paybill processing fees</div>
           </div>
 
           <div className="bg-gradient-to-br from-emerald-950/40 to-slate-900/80 border border-emerald-500/30 rounded-2xl p-5 relative overflow-hidden shadow-xl">
@@ -353,9 +353,7 @@ export function AdminReconciliationPage() {
               <h2 className="text-sm font-bold text-white uppercase tracking-wider">
                 Transaction Reconciliation Ledger
               </h2>
-              <p className="text-xs text-slate-400">
-                Audited against Safaricom Daraja M-Pesa receipts
-              </p>
+              <p className="text-xs text-slate-400">Audited against Safaricom M-Pesa receipts</p>
             </div>
             <span className="text-xs font-mono text-slate-400">
               Showing {filteredLedger.length} of {ledger.length} entries

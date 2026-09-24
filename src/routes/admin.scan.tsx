@@ -500,7 +500,7 @@ export function AdminScannerPage() {
                       <div className="absolute inset-0 bg-black/70 backdrop-blur-xs flex flex-col items-center justify-center text-white space-y-2 z-20">
                         <RefreshCw className="w-8 h-8 text-orange-400 animate-spin" />
                         <span className="text-xs font-medium uppercase tracking-wider">
-                          Verifying HMAC Pass...
+                          Verifying Ticket Pass...
                         </span>
                       </div>
                     )}
