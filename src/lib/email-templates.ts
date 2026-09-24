@@ -4,10 +4,12 @@ export interface TicketEmailItem {
   attendeeName: string;
   admitsCount: number;
   ticketUrl: string;
+  qrHash?: string;
+  qrDataUrl?: string;
 }
 
 // -----------------------------------------------------------------------------
-// 1. Booking Confirmation Email Template
+// 1. Booking Confirmation Email Template (Matches User's Official Template)
 // -----------------------------------------------------------------------------
 export function generateBookingConfirmationEmailHtml(params: {
   customer_name: string;
@@ -15,92 +17,200 @@ export function generateBookingConfirmationEmailHtml(params: {
   quantity: number | string;
   total_amount: number | string;
   order_id: string;
-  event_date: string;
+  event_date?: string;
   ticket_url: string;
+  pdf_url?: string;
+  qr_code_cid?: string;
+  qr_data_url?: string;
+  banner_cid?: string;
+  banner_url?: string;
+  venue_name?: string;
+  calendar_url?: string;
 }): string {
-  const { customer_name, ticket_tier, quantity, total_amount, order_id, event_date, ticket_url } =
-    params;
+  const {
+    customer_name,
+    ticket_tier,
+    quantity,
+    total_amount,
+    order_id,
+    event_date = "Saturday, 31 October 2026",
+    ticket_url,
+    pdf_url,
+    qr_code_cid,
+    qr_data_url,
+    banner_cid,
+    banner_url,
+    venue_name = "Top Cliff Lodge, Nakuru",
+    calendar_url,
+  } = params;
+
+  // Primary action button targets either dedicated PDF view/download or the digital ticket pass
+  const primaryButtonUrl = pdf_url || ticket_url;
+
+  // Add to Calendar Link (Google Calendar direct prefill)
+  const defaultCalendarUrl =
+    calendar_url ||
+    `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(
+      "Hauntings of the Rift: Halloween Experience by Verve & Co.",
+    )}&dates=20261031T130000Z/20261101T010000Z&details=${encodeURIComponent(
+      `Official Admission Pass: ${order_id}\nGuest: ${customer_name}\nTier: ${ticket_tier} (x${quantity})\nTotal: KES ${total_amount}\nVenue: ${venue_name}\nStrictly 18+ with Valid ID. Present your QR code at the gate.`,
+    )}&location=${encodeURIComponent("Top Cliff Lodge, Nakuru-Nairobi Highway, Nakuru, Kenya")}`;
+
+  // Banner image source (CID for offline/embedded, fallback to hosted or static URL)
+  const bannerSrc = banner_cid
+    ? `cid:${banner_cid}`
+    : banner_url || "https://verve-hauntings.vercel.app/event-banner.jpg";
+
+  // QR code image source
+  const qrSrc = qr_code_cid
+    ? `cid:${qr_code_cid}`
+    : qr_data_url ||
+      `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(
+        JSON.stringify({
+          order: order_id,
+          holder: customer_name,
+          tier: ticket_tier,
+          event: "HALLOWEEN_RIFT_2026",
+        }),
+      )}`;
+
+  // Google Schema.org EventReservation JSON-LD microdata
+  const jsonLd = JSON.stringify({
+    "@context": "http://schema.org",
+    "@type": "EventReservation",
+    reservationNumber: order_id,
+    reservationStatus: "http://schema.org/Confirmed",
+    underName: {
+      "@type": "Person",
+      name: customer_name,
+    },
+    reservationFor: {
+      "@type": "Event",
+      name: "Hauntings of the Rift: Halloween Experience by Verve & Co.",
+      startDate: "2026-10-31T16:00:00+03:00",
+      endDate: "2026-11-01T04:00:00+03:00",
+      location: {
+        "@type": "Place",
+        name: venue_name,
+        address: {
+          "@type": "PostalAddress",
+          streetAddress: "Nakuru-Nairobi Highway",
+          addressLocality: "Nakuru",
+          addressCountry: "KE",
+        },
+      },
+    },
+    ticketToken: order_id,
+    ticketDownloadUrl: primaryButtonUrl,
+  });
 
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Your Pass to Hauntings of the Rift</title>
+  <title>Your Ticket for Hauntings of the Rift by Verve &amp; Co.</title>
+  <script type="application/ld+json">
+    ${jsonLd}
+  </script>
 </head>
-<body style="margin: 0; padding: 0; background-color: #0d0d0d; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #f3f4f6;">
-  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #0d0d0d; padding: 40px 10px;">
+<body style="margin: 0; padding: 0; background-color: #0b090e; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #f5f2eb;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #0b090e; padding: 32px 12px;">
     <tr>
       <td align="center">
-        <table role="presentation" width="100%" style="max-width: 560px; background-color: #171717; border: 1px solid #262626; border-radius: 12px; padding: 32px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+        <!-- Main Container Card -->
+        <table role="presentation" width="100%" style="max-width: 560px; background-color: #15121b; border: 1px solid #282030; border-radius: 12px; overflow: hidden; box-shadow: 0 12px 36px rgba(0,0,0,0.7);">
           
-          <!-- Header -->
+          <!-- 1. Full-Width Event Artwork Banner -->
           <tr>
-            <td align="center" style="padding-bottom: 24px;">
-              <h1 style="margin: 0; font-size: 24px; font-weight: 800; tracking: 0.05em; color: #f97316; text-transform: uppercase;">Hauntings of the Rift</h1>
-              <p style="margin: 4px 0 0 0; font-size: 13px; color: #a1a1aa; text-transform: uppercase; letter-spacing: 0.1em;">Official Admission Pass</p>
+            <td style="padding: 0; line-height: 0; background-color: #000000;">
+              <img src="${bannerSrc}" alt="Hauntings of the Rift Banner" width="560" style="width: 100%; max-width: 560px; height: auto; display: block; border-top-left-radius: 12px; border-top-right-radius: 12px;" />
             </td>
           </tr>
 
-          <!-- Welcome Text -->
+          <!-- 2. Dark Event Subtitle Header Bar -->
           <tr>
-            <td style="padding-bottom: 24px; border-bottom: 1px solid #262626;">
-              <p style="margin: 0 0 12px 0; font-size: 16px; color: #f4f4f5;">Hi <strong>${customer_name}</strong>,</p>
-              <p style="margin: 0; font-size: 14px; line-height: 1.6; color: #a1a1aa;">Your booking has been verified. Below is your official ticket summary. Present your digital QR code at the gate check-in point for access.</p>
+            <td style="background-color: #1c1824; padding: 18px 24px; border-bottom: 1px solid #2c2336;">
+              <h2 style="margin: 0; font-size: 17px; font-weight: 700; color: #f5f2eb; line-height: 1.4; letter-spacing: -0.01em;">
+                Your Ticket &ndash; Hauntings of the Rift by Verve &amp; Co.
+              </h2>
+              <p style="margin: 6px 0 0 0; font-size: 13px; color: #9ca3af; line-height: 1.4;">
+                Sat, Oct 31 2026 &bull; 16:00 &bull; ${venue_name}
+              </p>
             </td>
           </tr>
 
-          <!-- Pass Details Box -->
+          <!-- 3. Ticket Confirmation Body -->
           <tr>
-            <td style="padding: 24px 0;">
-              <table role="presentation" width="100%" style="background-color: #0d0d0d; border-radius: 8px; border: 1px dashed #f97316; padding: 20px;">
-                <tr>
-                  <td style="padding-bottom: 12px;">
-                    <span style="font-size: 11px; text-transform: uppercase; color: #71717a; font-weight: 600;">Pass Type</span><br>
-                    <strong style="font-size: 16px; color: #ffffff;">${ticket_tier} (x${quantity})</strong>
-                  </td>
-                  <td align="right" style="padding-bottom: 12px;">
-                    <span style="font-size: 11px; text-transform: uppercase; color: #71717a; font-weight: 600;">Total Paid</span><br>
-                    <strong style="font-size: 16px; color: #22c55e;">KES ${total_amount}</strong>
-                  </td>
-                </tr>
-                <tr>
-                  <td>
-                    <span style="font-size: 11px; text-transform: uppercase; color: #71717a; font-weight: 600;">Order Ref</span><br>
-                    <span style="font-size: 13px; font-family: monospace; color: #d4d4d8;">${order_id}</span>
-                  </td>
-                  <td align="right">
-                    <span style="font-size: 11px; text-transform: uppercase; color: #71717a; font-weight: 600;">Event Date</span><br>
-                    <span style="font-size: 13px; color: #d4d4d8;">${event_date}</span>
-                  </td>
-                </tr>
-              </table>
+            <td style="padding: 24px 24px 8px 24px;">
+              <p style="margin: 0 0 8px 0; font-size: 15px; color: #f5f2eb;">
+                Hi ${customer_name},
+              </p>
+              <p style="margin: 0 0 20px 0; font-size: 13px; line-height: 1.5; color: #9ca3af;">
+                Your ticket is ready. Show this QR at entry or download the PDF below.
+              </p>
+
+              <!-- RSVP Code Field -->
+              <div style="margin-bottom: 14px;">
+                <span style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: #9ca3af; display: block; margin-bottom: 3px;">RSVP Code</span>
+                <span style="font-size: 17px; font-weight: 700; font-family: -apple-system, BlinkMacSystemFont, 'SF Mono', Consolas, Menlo, monospace; color: #f5f2eb; letter-spacing: 0.05em;">${order_id}</span>
+              </div>
+
+              <!-- Status Field -->
+              <div style="margin-bottom: 24px;">
+                <span style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: #9ca3af; display: block; margin-bottom: 3px;">Status</span>
+                <span style="font-size: 14px; font-weight: 700; color: #ffffff; letter-spacing: 0.05em;">CONFIRMED</span>
+              </div>
+
+              <!-- Pass Selection Quick Info -->
+              <div style="background-color: #100d16; border: 1px dashed #2f253a; border-radius: 6px; padding: 10px 14px; margin-bottom: 20px; font-size: 12px; color: #9ca3af; display: flex; justify-content: space-between;">
+                <div>
+                  <span style="color: #6b7280; text-transform: uppercase; font-size: 10px;">Pass Selection:</span>
+                  <strong style="color: #f5f2eb; margin-left: 4px;">${ticket_tier} (x${quantity})</strong>
+                </div>
+                <div>
+                  <span style="color: #6b7280; text-transform: uppercase; font-size: 10px;">Total Paid:</span>
+                  <strong style="color: #22c55e; margin-left: 4px;">KES ${total_amount}</strong>
+                </div>
+              </div>
+
+              <!-- 4. Crisp High-Contrast Centered QR Code Box -->
+              <div style="text-align: center; margin: 28px 0 24px 0;">
+                <div style="background-color: #ffffff; padding: 16px; border-radius: 10px; display: inline-block; box-shadow: 0 6px 20px rgba(0,0,0,0.5);">
+                  <img src="${qrSrc}" alt="Admission Pass QR Code" width="220" height="220" style="display: block; margin: 0 auto;" />
+                </div>
+              </div>
+
+              <!-- 5. Blue Primary Action Button (Matches Template) -->
+              <div style="text-align: center; margin: 20px 0 12px 0;">
+                <a href="${primaryButtonUrl}" style="background-color: #2563eb; color: #ffffff; font-weight: 600; text-decoration: none; padding: 12px 32px; border-radius: 6px; display: inline-block; font-size: 14px; letter-spacing: 0.02em;">
+                  View Ticket PDF
+                </a>
+              </div>
+
+              <!-- 6. Add to Calendar Link -->
+              <div style="text-align: center; margin-bottom: 20px;">
+                <a href="${defaultCalendarUrl}" target="_blank" style="color: #60a5fa; font-size: 13px; text-decoration: underline;">
+                  Add to calendar
+                </a>
+              </div>
+
+              <!-- 7. Fallback Subtitle Guidance -->
+              <p style="text-align: center; font-size: 11px; color: #9ca3af; margin: 0 auto 16px auto; max-width: 400px; line-height: 1.4;">
+                If the QR code doesn't display, the PDF has a copy you can present at the door.
+              </p>
             </td>
           </tr>
 
-          <!-- CTA Button -->
+          <!-- 8. Subtle Footer -->
           <tr>
-            <td align="center" style="padding: 12px 0 28px 0;">
-              <a href="${ticket_url}" style="background-color: #f97316; color: #000000; font-weight: 700; text-decoration: none; padding: 14px 28px; border-radius: 6px; display: inline-block; font-size: 14px; text-transform: uppercase; letter-spacing: 0.05em;">View Digital Pass & QR Code</a>
-            </td>
-          </tr>
-
-          <!-- Venue & Gate Instructions -->
-          <tr>
-            <td style="padding-top: 20px; border-top: 1px solid #262626; font-size: 12px; color: #71717a; line-height: 1.5;">
-              <strong style="color: #a1a1aa;">Venue Entry Guidelines:</strong>
-              <ul style="margin: 8px 0 0 0; padding-left: 18px;">
-                <li>Gates open strictly at 18:00 EAT. Early arrival is advised.</li>
-                <li>Each QR code can only be scanned once by gate security.</li>
-                <li>Keep your mobile phone brightness set to maximum during scanning.</li>
-              </ul>
-            </td>
-          </tr>
-
-          <!-- Footer -->
-          <tr>
-            <td align="center" style="padding-top: 32px; font-size: 11px; color: #52525b;">
-              &copy; 2026 Hauntings of the Rift. Managed by Verve & Co. All rights reserved.
+            <td style="border-top: 1px solid #231b2a; padding: 16px 24px; text-align: center;">
+              <p style="margin: 0 0 4px 0; font-size: 11px; color: #6b7280;">
+                Sent by Verve &amp; Co. &bull; Please do not reply to this automated message.
+              </p>
+              <p style="margin: 0; font-size: 10px; color: #4b5563;">
+                Top Cliff Lodge, Nakuru &bull; Strictly 18+ with Valid Government ID
+              </p>
             </td>
           </tr>
 

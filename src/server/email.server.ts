@@ -1,10 +1,14 @@
 import nodemailer from "nodemailer";
+import fs from "fs";
+import path from "path";
+import QRCode from "qrcode";
 import {
   generateBookingConfirmationEmailHtml,
   generateEventReminder24hEmailHtml,
   generateRefundNoticeEmailHtml,
   type TicketEmailItem,
-} from "@/lib/email-templates";
+} from "../lib/email-templates";
+import { generateTicketPdfBuffer } from "./pdf-ticket";
 
 export {
   generateBookingConfirmationEmailHtml,
@@ -50,6 +54,7 @@ function getSmtpTransporter(): nodemailer.Transporter | null {
 /**
  * Standard Email Dispatcher
  * Exclusively routes through Gmail SMTP (Nodemailer) from verve.n.co.ke@gmail.com.
+ * Supports inline CID attachments (images, QR) and documents (PDF, ICS).
  * Safely simulates/logs in development if credentials have not been configured yet.
  */
 async function dispatchEmail({
@@ -61,7 +66,13 @@ async function dispatchEmail({
   to: string | string[];
   subject: string;
   html: string;
-  attachments?: Array<{ filename: string; content: string; contentType?: string }>;
+  attachments?: Array<{
+    filename: string;
+    content: string | Buffer;
+    encoding?: string;
+    contentType?: string;
+    cid?: string;
+  }>;
 }): Promise<{ success: boolean; id?: string; simulated?: boolean; error?: string }> {
   const defaultFrom =
     process.env.EMAIL_FROM ||
@@ -80,8 +91,9 @@ async function dispatchEmail({
         attachments: attachments?.map((att) => ({
           filename: att.filename,
           content: att.content,
-          encoding: "base64",
+          encoding: att.encoding || (typeof att.content === "string" ? "base64" : undefined),
           contentType: att.contentType,
+          cid: att.cid,
         })),
       });
       return { success: true, id: info.messageId };
@@ -96,9 +108,57 @@ async function dispatchEmail({
 
   // Simulation mode (logs safely in dev / test when SMTP credentials are not yet configured)
   console.info(
-    `[Email Service - Simulated Gmail SMTP] Email to ${Array.isArray(to) ? to.join(", ") : to}: "${subject}"`,
+    `[Email Service - Simulated Gmail SMTP] Email to ${Array.isArray(to) ? to.join(", ") : to}: "${subject}" (Attachments: ${attachments?.map((a) => a.filename).join(", ") || "None"})`,
   );
   return { success: true, simulated: true };
+}
+
+// -----------------------------------------------------------------------------
+// Calendar Utilities
+// -----------------------------------------------------------------------------
+
+/**
+ * Generates an RFC 5545 compliant iCalendar (.ics) string for calendar apps
+ */
+export function generateEventIcs({
+  ticketCode,
+  customerName,
+  ticketTier,
+  venueName = "Top Cliff Lodge, Nakuru",
+}: {
+  ticketCode: string;
+  customerName: string;
+  ticketTier: string;
+  venueName?: string;
+}): string {
+  const now = new Date().toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
+  // Event: Sat 31 Oct 2026 16:00 EAT (13:00 UTC) to Sun 01 Nov 2026 04:00 EAT (01:00 UTC)
+  return [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//Verve & Co.//Hauntings of the Rift//EN",
+    "CALSCALE:GREGORIAN",
+    "METHOD:REQUEST",
+    "BEGIN:VEVENT",
+    `UID:hauntings-rift-${ticketCode}@verve.co.ke`,
+    `DTSTAMP:${now}`,
+    "DTSTART:20261031T130000Z",
+    "DTEND:20261101T010000Z",
+    "SUMMARY:Hauntings of the Rift: Halloween Experience by Verve & Co.",
+    `DESCRIPTION:Official Ticket Pass for ${customerName}\\nRSVP Code: ${ticketCode}\\nTier: ${ticketTier}\\nVenue: ${venueName}\\nStrictly 18+ with Valid ID. Present your QR code at the entrance gate.`,
+    "LOCATION:Top Cliff Lodge, Nakuru-Nairobi Highway, Nakuru, Kenya",
+    "STATUS:CONFIRMED",
+    "ORGANIZER;CN=Verve & Co.:mailto:verve.n.co.ke@gmail.com",
+    "SEQUENCE:0",
+    "PRIORITY:5",
+    "BEGIN:VALARM",
+    "TRIGGER:-PT24H",
+    "ACTION:DISPLAY",
+    "DESCRIPTION:Hauntings of the Rift begins in 24 hours at Top Cliff Lodge, Nakuru!",
+    "END:VALARM",
+    "END:VEVENT",
+    "END:VCALENDAR",
+  ].join("\r\n");
 }
 
 // -----------------------------------------------------------------------------
@@ -106,147 +166,181 @@ async function dispatchEmail({
 // -----------------------------------------------------------------------------
 
 /**
- * Generates an offline, self-contained printable digital ticket pass HTML
+ * Sends official ticket confirmation email matching the exact template:
+ * - Full-width event artwork banner
+ * - Dark subtitle header strip
+ * - Personalized greeting & RSVP code
+ * - Centered high-contrast QR code
+ * - [ View Ticket PDF ] primary action button
+ * - Add to calendar link
+ * - Attached real Ticket-[CODE].pdf
+ * - Attached Event-[CODE].ics
+ * - Embedded inline CID QR code and banner
  */
-function generatePrintableTicketPassHtml({
-  buyerName,
-  orderNumber,
-  totalKes,
-  ticketTier,
-  quantity,
-  primaryUrl,
-  tickets,
-}: {
-  buyerName: string;
-  orderNumber: string;
-  totalKes: number;
-  ticketTier: string;
-  quantity: number;
-  primaryUrl: string;
-  tickets?: TicketEmailItem[];
-}): string {
-  const primaryCode = (tickets && tickets[0]?.ticketNumber) || orderNumber;
-  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(
-    JSON.stringify({
-      order: orderNumber,
-      code: primaryCode,
-      tier: ticketTier,
-      event: "HALLOWEEN_RIFT_2026",
-    }),
-  )}`;
-
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Admission Pass — ${orderNumber} — Verve &amp; Co.</title>
-  <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0c070b; color: #f5f3ef; margin: 0; padding: 24px; }
-    .ticket-card { max-width: 520px; margin: 0 auto; background: #180f16; border: 2px solid #f59e0b; border-radius: 16px; padding: 28px; box-shadow: 0 20px 40px rgba(0,0,0,0.8); }
-    .header { text-align: center; border-bottom: 1px dashed #4b2a3d; padding-bottom: 20px; }
-    .logo { color: #f59e0b; font-size: 24px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; }
-    .event-title { font-size: 18px; color: #fdf2f8; margin-top: 6px; font-weight: 600; }
-    .qr-container { text-align: center; margin: 24px 0; }
-    .qr-box { background: #ffffff; padding: 14px; border-radius: 12px; display: inline-block; box-shadow: 0 4px 12px rgba(0,0,0,0.4); }
-    .details { margin: 20px 0; font-size: 14px; line-height: 1.6; }
-    .details-row { display: flex; justify-content: space-between; margin-bottom: 8px; border-bottom: 1px solid #281822; padding-bottom: 4px; }
-    .label { color: #9ca3af; text-transform: uppercase; font-size: 11px; letter-spacing: 1px; }
-    .value { font-weight: 600; color: #f3f4f6; }
-    .venue { font-size: 12px; color: #d1d5db; background: #241420; padding: 12px; border-radius: 8px; margin-top: 16px; border-left: 3px solid #f59e0b; }
-    .btn { display: block; text-align: center; background: #f59e0b; color: #0c070b; text-decoration: none; font-weight: 700; padding: 12px; border-radius: 8px; margin-top: 20px; text-transform: uppercase; font-size: 13px; letter-spacing: 1px; }
-  </style>
-</head>
-<body>
-  <div class="ticket-card">
-    <div class="header">
-      <div class="logo">Verve &amp; Co.</div>
-      <div class="event-title">Hauntings of the Rift — Official Admission Pass</div>
-    </div>
-    <div class="qr-container">
-      <div class="qr-box">
-        <img src="${qrUrl}" alt="Gate Entry QR Code" width="220" height="220" style="display: block;" />
-      </div>
-      <div style="font-family: monospace; font-size: 12px; color: #f59e0b; margin-top: 8px;">${primaryCode}</div>
-    </div>
-    <div class="details">
-      <div class="details-row"><span class="label">Guest Name</span><span class="value">${buyerName}</span></div>
-      <div class="details-row"><span class="label">Order Ref</span><span class="value" style="font-family: monospace;">${orderNumber}</span></div>
-      <div class="details-row"><span class="label">Pass Selection</span><span class="value">${ticketTier} (x${quantity})</span></div>
-      <div class="details-row"><span class="label">Total Paid</span><span class="value" style="color: #10b981;">KES ${totalKes.toLocaleString()} (vervenexus)</span></div>
-      ${tickets && tickets[0] ? `<div class="details-row"><span class="label">Ticket Pass Code</span><span class="value" style="font-family: monospace;">${tickets[0].ticketNumber}</span></div>` : ""}
-    </div>
-    <div class="venue">
-      <strong>Venue:</strong> Top Cliff Lodge, Nakuru<br/>
-      <strong>Date:</strong> Saturday, 31 October 2026 · Gates Open 4:00 PM EAT<br/>
-      <strong>Entry Policy:</strong> Strictly 18+ with Valid Government ID. Present this QR code at gate checkpoint.
-    </div>
-    <a href="${primaryUrl}" class="btn" target="_blank">Open Online Pass &amp; Details</a>
-  </div>
-</body>
-</html>`;
-}
-
-/**
- * Sends official ticket confirmation email with digital ticket links and attached printable pass
- */
-export async function sendTicketConfirmationEmail({
-  to,
-  buyerName,
-  orderNumber,
-  totalKes,
-  ticketTier,
-  quantity,
-  ticketUrl,
-  tickets,
-}: {
+export async function sendTicketConfirmationEmail(params: {
   to: string;
-  buyerName: string;
-  orderNumber: string;
-  totalKes: number;
+  buyerName?: string;
+  attendeeName?: string;
+  customerName?: string;
+  orderNumber?: string;
+  ticketCode?: string;
+  totalKes?: number;
   ticketTier?: string;
+  tierName?: string;
   quantity?: number;
+  admitsCount?: number;
   ticketUrl?: string;
+  pdfUrl?: string;
   tickets?: TicketEmailItem[];
+  venueName?: string;
+  eventDate?: string;
+  qrHash?: string;
 }): Promise<{ success: boolean; id?: string; simulated?: boolean; error?: string }> {
-  const tier = ticketTier || (tickets && tickets[0]?.tierName) || "General Admission Pass";
-  const qty = quantity || tickets?.length || 1;
-  const primaryUrl =
-    ticketUrl ||
-    (tickets && tickets[0]?.ticketUrl) ||
-    "https://verve-hauntings.vercel.app/ticket/demo";
+  const name = params.buyerName || params.attendeeName || params.customerName || "Valued Attendee";
+  const code =
+    params.ticketCode ||
+    params.orderNumber ||
+    (params.tickets && params.tickets[0]?.ticketNumber) ||
+    `HR-${Math.floor(1000 + Math.random() * 9000)}-${Math.floor(1000 + Math.random() * 9000)}`;
+  const tier =
+    params.ticketTier ||
+    params.tierName ||
+    (params.tickets && params.tickets[0]?.tierName) ||
+    "General Admission Pass";
+  const qty = params.quantity || params.admitsCount || params.tickets?.length || 1;
+  const total = params.totalKes ?? qty * 1000;
+  const venue = params.venueName || "Top Cliff Lodge, Nakuru";
+  const eventDate = params.eventDate || "Saturday, 31 October 2026";
+  const siteUrl =
+    process.env.SITE_URL ||
+    "https://ais-dev-vsqv3iunzivbty4kcmufgu-668094516097.europe-west1.run.app";
+  const primaryTicketUrl =
+    params.ticketUrl ||
+    (params.tickets && params.tickets[0]?.ticketUrl) ||
+    `${siteUrl}/ticket/${code}`;
+  const primaryPdfUrl = params.pdfUrl || `${siteUrl}/api/tickets/${code}/pdf`;
 
+  // 1. Authoritatively Generate PDF Ticket Pass
+  let pdfBuffer: Buffer;
+  try {
+    pdfBuffer = await generateTicketPdfBuffer({
+      ticketCode: code,
+      customerName: name,
+      tierName: tier,
+      admitsCount: qty,
+      orderNumber: params.orderNumber || code,
+      totalKes: total,
+      qrHash: params.qrHash || (params.tickets && params.tickets[0]?.qrHash),
+      eventDate,
+      venueName: venue,
+    });
+  } catch (pdfErr) {
+    console.warn("[PDF Gen] Fallback pass buffer used:", pdfErr);
+    pdfBuffer = Buffer.from("%PDF-1.4 Fallback Ticket Pass");
+  }
+
+  // 2. Generate standard iCalendar (.ics) attachment
+  const icsContent = generateEventIcs({
+    ticketCode: code,
+    customerName: name,
+    ticketTier: tier,
+    venueName: venue,
+  });
+  const icsBuffer = Buffer.from(icsContent, "utf-8");
+
+  // 3. Generate high-resolution QR code PNG buffer for CID embedding
+  const qrPayload = JSON.stringify({
+    code,
+    order: params.orderNumber || code,
+    tier,
+    holder: name,
+    admits: qty,
+    event: "HALLOWEEN_RIFT_2026",
+  });
+  let qrBuffer: Buffer;
+  let qrDataUrl = "";
+  try {
+    qrBuffer = await QRCode.toBuffer(qrPayload, {
+      width: 320,
+      margin: 1,
+      errorCorrectionLevel: "H",
+    });
+    qrDataUrl = `data:image/png;base64,${qrBuffer.toString("base64")}`;
+  } catch (qrErr) {
+    console.warn("[QR Gen Warning]:", qrErr);
+    qrBuffer = Buffer.from("");
+  }
+
+  // 4. Read hero banner image for CID embedding
+  let bannerBuffer: Buffer | null = null;
+  try {
+    const bannerPath = path.resolve(process.cwd(), "public/event-banner.jpg");
+    if (fs.existsSync(bannerPath)) {
+      bannerBuffer = fs.readFileSync(bannerPath);
+    }
+  } catch {
+    bannerBuffer = null;
+  }
+
+  // 5. Generate Email HTML matching template
   const emailHtml = generateBookingConfirmationEmailHtml({
-    customer_name: buyerName,
+    customer_name: name,
     ticket_tier: tier,
     quantity: qty,
-    total_amount: totalKes.toLocaleString(),
-    order_id: orderNumber,
-    event_date: "Saturday, 31 October 2026",
-    ticket_url: primaryUrl,
+    total_amount: total.toLocaleString(),
+    order_id: code,
+    event_date: eventDate,
+    ticket_url: primaryTicketUrl,
+    pdf_url: primaryPdfUrl,
+    banner_cid: bannerBuffer ? "event-banner" : undefined,
+    banner_url: `${siteUrl}/event-banner.jpg`,
+    qr_code_cid: qrBuffer.length > 0 ? "ticket-qr" : undefined,
+    qr_data_url: qrDataUrl,
+    venue_name: venue,
   });
 
-  const printableTicketPassHtml = generatePrintableTicketPassHtml({
-    buyerName,
-    orderNumber,
-    totalKes,
-    ticketTier: tier,
-    quantity: qty,
-    primaryUrl,
-    tickets,
-  });
+  // 6. Assemble attachments
+  const attachments: Array<{
+    filename: string;
+    content: Buffer;
+    contentType?: string;
+    cid?: string;
+  }> = [
+    {
+      filename: `Ticket-${code}.pdf`,
+      content: pdfBuffer,
+      contentType: "application/pdf",
+    },
+    {
+      filename: `Event-${code}.ics`,
+      content: icsBuffer,
+      contentType: "text/calendar; charset=utf-8; method=REQUEST",
+    },
+  ];
+
+  if (bannerBuffer) {
+    attachments.push({
+      filename: "event-banner.jpg",
+      content: bannerBuffer,
+      contentType: "image/jpeg",
+      cid: "event-banner",
+    });
+  }
+
+  if (qrBuffer.length > 0) {
+    attachments.push({
+      filename: "ticket-qr.png",
+      content: qrBuffer,
+      contentType: "image/png",
+      cid: "ticket-qr",
+    });
+  }
 
   return dispatchEmail({
-    to,
-    subject: `Your Pass to Hauntings of the Rift (${orderNumber}) — Verve & Co.`,
+    to: params.to,
+    subject: `Your Ticket for Hauntings of the Rift: Halloween Experience by Verve & Co.`,
     html: emailHtml,
-    attachments: [
-      {
-        filename: `Pass-${orderNumber}.html`,
-        content: Buffer.from(printableTicketPassHtml).toString("base64"),
-        contentType: "text/html",
-      },
-    ],
+    attachments,
   });
 }
 

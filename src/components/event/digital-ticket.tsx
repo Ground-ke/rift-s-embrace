@@ -12,6 +12,7 @@ import {
   Check,
   ExternalLink,
   Users,
+  FileText,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { VerveLogo } from "@/components/brand/verve-logo";
@@ -77,8 +78,28 @@ export const DigitalTicket: React.FC<DigitalTicketProps> = ({
     }
   };
 
-  const handleDownloadQr = () => {
+  const handleDownloadQr = async () => {
     setIsDownloading(true);
+    try {
+      // First attempt to download the high-resolution server-rendered template pass
+      const res = await fetch(`/api/tickets/${ticket.ticketNumber}/image`);
+      if (res.ok) {
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `hauntings-pass-${ticket.ticketNumber}.jpg`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+        setIsDownloading(false);
+        return;
+      }
+    } catch {
+      // Fallback to local canvas generation if offline
+    }
+
     try {
       const svg = document.getElementById(`ticket-qr-${ticket.ticketNumber}`);
       if (!svg) return;
@@ -93,7 +114,7 @@ export const DigitalTicket: React.FC<DigitalTicketProps> = ({
         if (!ctx) return;
 
         // Dark gothic background
-        ctx.fillStyle = "#0A080F";
+        ctx.fillStyle = "#2B2C2E";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
         // Header text
@@ -117,11 +138,7 @@ export const DigitalTicket: React.FC<DigitalTicketProps> = ({
           canvas.width / 2,
           canvas.height - 25,
         );
-        ctx.fillText(
-          "31 Oct 2026 • Top Cliff Lounge, Nakuru",
-          canvas.width / 2,
-          canvas.height - 10,
-        );
+        ctx.fillText("31 Oct 2026 • Topcliff Lodge, Nakuru", canvas.width / 2, canvas.height - 10);
 
         const a = document.createElement("a");
         a.download = `hauntings-ticket-${ticket.ticketNumber}.png`;
@@ -316,6 +333,21 @@ export const DigitalTicket: React.FC<DigitalTicketProps> = ({
 
         {/* Action Bar */}
         <div className="border-t border-bone/20 bg-background/70 p-4 flex flex-wrap gap-2 justify-center">
+          <Button
+            asChild
+            variant="outline"
+            size="sm"
+            className="border-bone/20 text-xs text-bone hover:bg-bone/10"
+          >
+            <a
+              href={`/api/tickets/${ticket.ticketNumber}/pdf`}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <FileText className="mr-1.5 size-3.5 text-blue-400" /> Download PDF Pass
+            </a>
+          </Button>
+
           <Button
             variant="outline"
             size="sm"

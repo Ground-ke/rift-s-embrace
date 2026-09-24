@@ -8,6 +8,7 @@ import { sendTicketConfirmationEmail, sendRecoveryEmail } from "./email.server";
 import { OrderService } from "./order-service";
 import { isCloudSqlConfigured } from "../db/index.ts";
 import { insertTickets, updateTicketStatus } from "../db/tickets.ts";
+import { PersistentStore } from "./persistent-store";
 
 export interface DigitalTicketRecord {
   id: string;
@@ -69,8 +70,8 @@ export interface CheckInLogRecord {
   ipAddress?: string;
 }
 
-// In-Memory Synchronized Store (Fast Fallback & Local Dev/Preview Cache)
-const ticketsStore = new Map<string, DigitalTicketRecord>();
+// Persistent Authoritative Store (survives container restarts and deployments)
+const ticketsStore = PersistentStore.loadTickets();
 const transactionsStore = new Map<string, PaymentTransactionRecord>();
 const checkInLogsStore: CheckInLogRecord[] = [];
 const recoveryRateLimitStore: RecoveryRateLimitRecord[] = [];
@@ -89,6 +90,7 @@ export class TicketsServerService {
    */
   static updateTicketRecord(ticket: DigitalTicketRecord): void {
     ticketsStore.set(ticket.ticketNumber, ticket);
+    PersistentStore.saveTickets(ticketsStore);
   }
   /**
    * Issues cryptographic digital tickets for a completed order
@@ -554,6 +556,7 @@ export class TicketsServerService {
     ticket.usedAt = new Date().toISOString();
     ticket.scannedBy = scannedBy;
     ticketsStore.set(normalized, ticket);
+    PersistentStore.saveTickets(ticketsStore);
 
     if (isCloudSqlConfigured()) {
       updateTicketStatus(normalized, "used", scannedBy).catch((err) => {

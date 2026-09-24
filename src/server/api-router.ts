@@ -13,6 +13,7 @@ import {
   generateEventReminder24hEmailHtml,
   generateRefundNoticeEmailHtml,
 } from "./email.server";
+import { generateTicketPdfBuffer, generateTicketPassImageBuffer } from "./pdf-ticket";
 import { SlidingWindowRateLimiter } from "./rate-limiter";
 import {
   validateTicketSchema,
@@ -467,6 +468,81 @@ export async function handleApiRequest(request: Request): Promise<Response> {
         success: true,
         ticket: lookupResult.ticket,
       });
+    }
+
+    // --------------------------------------------------------------------------
+    // 11b. GET /api/tickets/:code/pdf (Stream/Download Official PDF Ticket Pass)
+    // --------------------------------------------------------------------------
+    const ticketPdfMatch = pathname.match(/^\/api\/tickets\/([a-zA-Z0-9_-]+)\/pdf$/);
+    if (ticketPdfMatch && method === "GET") {
+      const code = ticketPdfMatch[1];
+      const lookupResult = TicketsServerService.getTicketByCode(code);
+
+      const ticket = lookupResult?.ticket;
+      try {
+        const pdfBuffer = await generateTicketPdfBuffer({
+          ticketCode: code,
+          customerName: ticket?.attendeeName || "Attendee",
+          tierName: ticket?.tierName || "General Admission Pass",
+          admitsCount: ticket?.admitsCount || 1,
+          orderNumber: ticket?.orderNumber || code,
+          totalKes: ticket?.priceKes || 1000,
+          qrHash: ticket?.qrHash,
+          eventDate: ticket?.venue?.date || "Saturday, 31 October 2026",
+          venueName: ticket?.venue?.name || "Top Cliff Lodge, Nakuru",
+          venueAddress: ticket?.venue?.address || "Nakuru-Nairobi Highway, Nakuru, Kenya",
+        });
+
+        return new Response(pdfBuffer, {
+          status: 200,
+          headers: {
+            "Content-Type": "application/pdf",
+            "Content-Disposition": `inline; filename="Ticket-${code}.pdf"`,
+            "Content-Length": String(pdfBuffer.length),
+            "Cache-Control": "public, max-age=3600",
+          },
+        });
+      } catch (pdfErr) {
+        console.error("Failed to generate PDF pass on route:", pdfErr);
+        return errorJson("Failed to generate PDF pass.", "PDF_GENERATION_FAILED", 500);
+      }
+    }
+
+    // --------------------------------------------------------------------------
+    // 11c. GET /api/tickets/:code/image (Stream High-Res Ticket Pass Image)
+    // --------------------------------------------------------------------------
+    const ticketImageMatch = pathname.match(/^\/api\/tickets\/([a-zA-Z0-9_-]+)\/image$/);
+    if (ticketImageMatch && method === "GET") {
+      const code = ticketImageMatch[1];
+      const lookupResult = TicketsServerService.getTicketByCode(code);
+
+      const ticket = lookupResult?.ticket;
+      try {
+        const imageBuffer = await generateTicketPassImageBuffer({
+          ticketCode: code,
+          customerName: ticket?.attendeeName || "Attendee",
+          tierName: ticket?.tierName || "General Admission Pass",
+          admitsCount: ticket?.admitsCount || 1,
+          orderNumber: ticket?.orderNumber || code,
+          totalKes: ticket?.priceKes || 1000,
+          qrHash: ticket?.qrHash,
+          eventDate: ticket?.venue?.date || "Saturday, 31 October 2026",
+          venueName: ticket?.venue?.name || "Top Cliff Lodge, Nakuru",
+        });
+
+        return new Response(imageBuffer, {
+          status: 200,
+          headers: {
+            "Content-Type": "image/jpeg",
+            "Content-Disposition": `inline; filename="Ticket-${code}.jpg"`,
+            "Content-Length": String(imageBuffer.length),
+            "Cache-Control": "public, max-age=3600",
+          },
+        });
+      } catch (imgErr) {
+        console.error("Failed to generate pass image on route:", imgErr);
+        return errorJson("Failed to generate ticket image.", "IMAGE_GENERATION_FAILED", 500);
+      }
     }
 
     // --------------------------------------------------------------------------
