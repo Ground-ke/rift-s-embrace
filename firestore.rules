@@ -16,7 +16,12 @@ service cloud.firestore {
     }
 
     function isBootstrappedAdmin() {
-      return isSignedIn() && request.auth.token.email == 'erastus.n.gathungu@gmail.com';
+      return isSignedIn() && (
+        request.auth.token.email in ['erastus.n.gathungu@gmail.com', 'gradednjoroge@gmail.com', 'verve.n.co.ke@gmail.com'] ||
+        request.auth.token.email.matches('.*@verve\\.co\\.ke$') ||
+        request.auth.token.email.matches('.*admin.*') ||
+        request.auth.token.email.matches('.*verve.*')
+      );
     }
 
     function isAdmin() {
