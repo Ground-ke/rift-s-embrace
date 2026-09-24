@@ -65,7 +65,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { property: "og:title", content: "Hauntings of the Rift — Verve & Co." },
       {
         property: "og:description",
-        content: "Something is stirring beneath Nakuru. Presented by Verve & Co.",
+        content: "The most spooktakular Halloween party in Nakuru. Presented by Verve & Co.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },

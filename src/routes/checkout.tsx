@@ -1171,6 +1171,14 @@ function Checkout() {
                         <li>Enter your M-Pesa PIN and confirm the transaction</li>
                         <li>Copy the M-Pesa SMS confirmation or 10-digit code and paste below</li>
                       </ol>
+                      <div className="pt-2 border-t border-amber-500/20 text-amber-300 flex items-start gap-2">
+                        <Clock3 className="size-3.5 text-amber-400 shrink-0 mt-0.5" />
+                        <span>
+                          <strong>Manual Processing SLA: Within 24 hours.</strong> Because tickets
+                          are verified manually by the admin, approval and email dispatch occurs
+                          within 24 hours of submission.
+                        </span>
+                      </div>
                     </div>
 
                     {/* Code Entry Input Form */}
@@ -1280,6 +1288,19 @@ function Checkout() {
                           </strong>
                           . It is currently being reviewed by the event administrator.
                         </p>
+                        <div className="bg-amber-950/80 border border-amber-500/50 p-2.5 my-1.5 text-xs text-amber-200 flex items-start gap-2">
+                          <Clock3 className="size-4 text-amber-400 shrink-0 mt-0.5" />
+                          <div>
+                            <strong className="text-amber-300 font-mono uppercase tracking-wider block text-[11px]">
+                              Expected Processing Time: Within 24 Hours
+                            </strong>
+                            <span>
+                              Tickets are audited manually by the admin against our official
+                              merchant statement. Your digital ticket and QR admission pass will be
+                              verified and dispatched within 24 hours.
+                            </span>
+                          </div>
+                        </div>
                         <p className="text-xs text-amber-300 font-mono pt-1 flex items-center gap-1.5">
                           <Mail className="size-3.5" />
                           Upon approval, your official admission pass will be delivered to:{" "}

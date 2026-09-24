@@ -48,6 +48,7 @@ interface OrderData {
   totalKes: number;
   buyerName: string;
   buyerPhone: string;
+  buyerEmail?: string;
   status: string;
   expiresAt: string;
   checkoutToken: string;

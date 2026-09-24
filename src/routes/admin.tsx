@@ -110,6 +110,7 @@ function AdminDashboardContent() {
   const [metrics, setMetrics] = useState<OverviewMetrics | null>(null);
   const [isLoadingMetrics, setIsLoadingMetrics] = useState(true);
   const [pendingOrdersCount, setPendingOrdersCount] = useState<number>(0);
+  const [pendingRevenueKes, setPendingRevenueKes] = useState<number>(0);
 
   // Fetch overview metrics from backend and subscribe to live Firestore updates
   const fetchMetrics = async () => {
@@ -127,6 +128,22 @@ function AdminDashboardContent() {
           activeScannersCount: data.activeScannersCount ?? 3,
           hourlySalesTrend: data.hourlySalesTrend || [],
         });
+      }
+
+      // Concurrently fetch pending orders to show pending revenue & queue size immediately
+      try {
+        const pendingRes = await fetch("/api/admin/orders/pending");
+        const pendingData = await pendingRes.json();
+        if (pendingData.success && Array.isArray(pendingData.orders)) {
+          setPendingOrdersCount(pendingData.orders.length);
+          const totalKes = pendingData.orders.reduce(
+            (sum: number, o: { totalKes?: number }) => sum + (o.totalKes || 0),
+            0,
+          );
+          setPendingRevenueKes(totalKes);
+        }
+      } catch {
+        // noop
       }
     } catch (err) {
       console.warn("Failed to load metrics from API:", err);
@@ -192,6 +209,8 @@ function AdminDashboardContent() {
     // Subscribe to live Firestore pending approval orders
     const unsubscribePending = subscribeToPendingOrders((pendingOrders: FirestoreOrder[]) => {
       setPendingOrdersCount(pendingOrders.length);
+      const totalKes = pendingOrders.reduce((sum, o) => sum + (o.totalKes || 0), 0);
+      setPendingRevenueKes(totalKes);
     });
 
     return () => {
@@ -508,13 +527,21 @@ function AdminDashboardContent() {
                       <ShieldCheck className="size-5 animate-pulse" />
                     </div>
                     <div>
-                      <h3 className="font-display text-base text-amber-300">
-                        {pendingOrdersCount} M-Pesa Transaction{pendingOrdersCount > 1 ? "s" : ""}{" "}
-                        Awaiting Verification
-                      </h3>
-                      <p className="text-xs text-bone-muted">
-                        Attendees submitted their M-Pesa codes or messages. Verify and issue digital
-                        passes.
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-display text-base text-amber-300">
+                          {pendingOrdersCount} M-Pesa Transaction{pendingOrdersCount > 1 ? "s" : ""}{" "}
+                          Awaiting Verification (KES {pendingRevenueKes.toLocaleString()})
+                        </h3>
+                        <Badge
+                          variant="outline"
+                          className="border-amber-500/50 bg-amber-950/50 text-amber-300 font-mono text-[10px]"
+                        >
+                          24h SLA Active
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-bone-muted mt-0.5">
+                        Attendees submitted their M-Pesa transaction messages. Once you approve them
+                        in the Verification Queue, confirmed sales and QR passes are issued.
                       </p>
                     </div>
                   </div>
@@ -525,7 +552,7 @@ function AdminDashboardContent() {
                     className="shrink-0 font-mono text-xs"
                     aria-label="Open M-Pesa Verification Queue"
                   >
-                    Open Verification Queue &rarr;
+                    Open Verification Queue ({pendingOrdersCount}) &rarr;
                   </Button>
                 </div>
               )}
@@ -546,7 +573,9 @@ function AdminDashboardContent() {
                   <p className="text-[11px] text-muted-foreground font-mono">
                     {(metrics?.totalRevenueKes ?? 0) > 0
                       ? "Direct M-Pesa Paybill (522533)"
-                      : "No revenue collected yet"}
+                      : pendingRevenueKes > 0
+                        ? `KES ${pendingRevenueKes.toLocaleString()} pending in verification queue`
+                        : "No revenue collected yet"}
                   </p>
                 </div>
 
@@ -564,7 +593,9 @@ function AdminDashboardContent() {
                   <p className="text-[11px] text-muted-foreground font-mono">
                     {(metrics?.totalTicketsSold ?? 0) > 0
                       ? "Verified QR passes"
-                      : "No passes issued yet"}
+                      : pendingOrdersCount > 0
+                        ? `${pendingOrdersCount} pass${pendingOrdersCount > 1 ? "es" : ""} awaiting approval`
+                        : "No passes issued yet"}
                   </p>
                 </div>
 

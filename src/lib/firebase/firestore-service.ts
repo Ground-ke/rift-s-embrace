@@ -284,10 +284,14 @@ export async function submitMpesaCodeToFirestore(params: {
       orderId,
       mpesaCode: mpesaCode.trim().toUpperCase(),
       status: "pending_approval",
+      customerEmail:
+        customerEmail && customerEmail.trim()
+          ? customerEmail.trim().toLowerCase()
+          : "pending-delivery@verve.co.ke",
+      totalKes: typeof totalKes === "number" && totalKes >= 0 ? totalKes : 1000,
       updatedAt: new Date().toISOString(),
     };
     if (mpesaMessage) updateData.mpesaMessage = mpesaMessage.trim();
-    if (customerEmail) updateData.customerEmail = customerEmail.trim().toLowerCase();
     if (orderNumber) updateData.orderNumber = orderNumber;
     if (customerName) updateData.customerName = customerName;
     if (customerPhone) updateData.customerPhone = customerPhone;
@@ -295,7 +299,6 @@ export async function submitMpesaCodeToFirestore(params: {
     if (ticketName) updateData.ticketName = ticketName;
     if (admitsCount !== undefined) updateData.admitsCount = admitsCount;
     if (quantity !== undefined) updateData.quantity = quantity;
-    if (totalKes !== undefined) updateData.totalKes = totalKes;
 
     await setDoc(doc(db, "orders", orderId), updateData, { merge: true });
   } catch (error) {

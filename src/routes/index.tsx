@@ -46,7 +46,7 @@ export const Route = createFileRoute("/")({
       {
         property: "og:description",
         content:
-          "Something is stirring beneath Nakuru. Presented by Verve & Co. Tickets from KES 1,000.",
+          "The most spooktakular Halloween party in Nakuru. Presented by Verve & Co. Tickets from KES 1,000.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -340,7 +340,7 @@ function Index() {
               Hauntings <span className="block text-bone-muted">of the Rift</span>
             </h1>
             <p className="mt-5 font-display text-xl italic text-bone sm:text-3xl">
-              Something is stirring beneath Nakuru.
+              The most spooktakular Halloween party in Nakuru
             </p>
             <div className="mt-6 grid max-w-3xl gap-px bg-bone/20 sm:grid-cols-3">
               {heroFacts.map(([text, Icon]) => (

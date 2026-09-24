@@ -308,6 +308,14 @@ export const PaymentStatusCard: React.FC<PaymentStatusCardProps> = ({
             3. Enter PIN &amp; confirm. Once you receive the confirmation SMS from M-Pesa, paste the
             message or reference code below.
           </p>
+          <div className="pt-1.5 border-t border-amber-500/20 text-amber-300/90 flex items-start gap-1.5">
+            <Clock3 className="size-3.5 text-amber-400 shrink-0 mt-0.5" />
+            <span>
+              <strong>Processing Window: Within 24 hours.</strong> Because tickets are verified
+              manually by the admin against our official merchant statement, ticket approval &amp;
+              email delivery is completed within 24 hours of submission.
+            </span>
+          </div>
         </div>
       </div>
 
@@ -411,12 +419,25 @@ export const PaymentStatusCard: React.FC<PaymentStatusCardProps> = ({
                 </Badge>
               </div>
               <h2 className="text-2xl font-display text-bone">AWAITING ADMIN CONFIRMATION</h2>
+              <div className="bg-amber-950/60 border border-amber-500/40 p-3 my-2 text-xs text-amber-200 flex items-start gap-2">
+                <Clock3 className="size-4 text-amber-400 shrink-0 mt-0.5" />
+                <div>
+                  <strong className="text-amber-300 uppercase tracking-wider block font-mono text-[11px]">
+                    Expected Processing Time: Within 24 Hours
+                  </strong>
+                  <span>
+                    Tickets are processed manually by the admin. Our operations team audits every
+                    transaction against our official merchant statement. Your digital ticket and QR
+                    admission pass will be verified and emailed to your address within 24 hours.
+                  </span>
+                </div>
+              </div>
               <p className="text-sm text-bone-muted leading-relaxed">
                 We received your M-Pesa transaction reference:{" "}
                 <strong className="text-amber-300 font-mono font-bold">
                   {submittedCode || extractedCode || mpesaReceipt || "SUBMITTED"}
                 </strong>
-                . Your payment record has been committed to the cloud database and is currently
+                . Your payment record has been committed to the verification ledger and is currently
                 being audited by the event administrator.
               </p>
             </div>

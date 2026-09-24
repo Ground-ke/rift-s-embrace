@@ -889,7 +889,10 @@ export class OrderService {
       const randomSuffix = Math.floor(100000 + Math.random() * 900000);
       const qty = quantity && quantity > 0 ? quantity : 1;
       const total = totalKes && totalKes > 0 ? totalKes : 1000;
-      const ticketTier = ticketName || (ticketTypeId ? this.getTicketType(ticketTypeId)?.name : "General Admission Pass") || "General Admission Pass";
+      const ticketTier =
+        ticketName ||
+        (ticketTypeId ? this.getTicketType(ticketTypeId)?.name : "General Admission Pass") ||
+        "General Admission Pass";
 
       order = {
         id: orderId,
@@ -928,14 +931,18 @@ export class OrderService {
 
     if (checkoutToken && !safeTokenEqual(order.checkoutToken, checkoutToken)) {
       // If token differs, allow update if buyer details or order matches to avoid locking attendees out
-      console.warn(`[OrderService] Token mismatch on order ${orderId}, proceeding with verification update`);
+      console.warn(
+        `[OrderService] Token mismatch on order ${orderId}, proceeding with verification update`,
+      );
     }
 
     order.mpesaCode = sanitizedCode;
     if (mpesaMessage) order.mpesaMessage = mpesaMessage.trim();
     if (buyerEmail) order.buyerEmail = buyerEmail.trim().toLowerCase();
-    if (buyerName && (!order.buyerName || order.buyerName === "Attendee")) order.buyerName = buyerName;
-    if (buyerPhone && (!order.buyerPhone || order.buyerPhone === "0700000000")) order.buyerPhone = buyerPhone;
+    if (buyerName && (!order.buyerName || order.buyerName === "Attendee"))
+      order.buyerName = buyerName;
+    if (buyerPhone && (!order.buyerPhone || order.buyerPhone === "0700000000"))
+      order.buyerPhone = buyerPhone;
     if (totalKes && totalKes > 0) order.totalKes = totalKes;
     if (quantity && quantity > 0) order.quantity = quantity;
     if (ticketName) order.ticketName = ticketName;
