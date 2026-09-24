@@ -109,21 +109,6 @@ function AdminDashboardContent() {
     }
   };
 
-  // Request camera access only after opening the dashboard so it's ready for gate scanning
-  useEffect(() => {
-    if (typeof navigator !== "undefined" && navigator.mediaDevices?.getUserMedia) {
-      navigator.mediaDevices
-        .getUserMedia({ video: true })
-        .then((stream) => {
-          // Immediately release stream tracks once permission is obtained so camera indicator turns off
-          stream.getTracks().forEach((track) => track.stop());
-        })
-        .catch((err) => {
-          console.log("Camera access requested on dashboard:", err?.message || err);
-        });
-    }
-  }, []);
-
   useEffect(() => {
     fetchMetrics();
 

@@ -30,6 +30,10 @@ interface AdminAuthContextType {
   firebaseUser: FirebaseUser | null;
   isFirebaseConfigured: boolean;
   signIn: (email: string, role?: UserRole) => Promise<{ success: boolean; message?: string }>;
+  signInWithEmail: (
+    email: string,
+    password?: string,
+  ) => Promise<{ success: boolean; message?: string }>;
   signInWithGoogle: () => Promise<{ success: boolean; message?: string }>;
   signOut: () => Promise<void>;
   switchTestRole: (role: UserRole) => void;
@@ -42,9 +46,9 @@ const STORAGE_KEY = "rift_admin_session";
 // Preset accounts for seamless evaluation and verification
 export const PRESET_ACCOUNTS: Record<UserRole, AdminUser> = {
   admin: {
-    id: "usr-admin-graded",
-    email: "gradednjoroge@gmail.com",
-    name: "Graded Njoroge (Lead Organizer)",
+    id: "usr-admin-verve",
+    email: "verve.n.co.ke@gmail.com",
+    name: "Verve & Co. (Lead Organizer)",
     role: "admin",
   },
   scanner: {
@@ -62,9 +66,43 @@ export const PRESET_ACCOUNTS: Record<UserRole, AdminUser> = {
 };
 
 export function AdminAuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<AdminUser | null>(null);
+  // Synchronous hydration from localStorage prevents loading delay and UI flickers
+  const [user, setUser] = useState<AdminUser | null>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if (stored) return JSON.parse(stored);
+      } catch {
+        // ignore
+      }
+    }
+    return null;
+  });
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if (stored) return false;
+      } catch {
+        // ignore
+      }
+    }
+    return true;
+  });
+
+  // Helper to determine if an email is an authorized organizer superadmin
+  const isOrganizerEmail = (email: string): boolean => {
+    const normalized = email.trim().toLowerCase();
+    return (
+      normalized === "verve.n.co.ke@gmail.com" ||
+      normalized === "gradednjoroge@gmail.com" ||
+      normalized === "erastus.n.gathungu@gmail.com" ||
+      normalized.endsWith("@verve.co.ke") ||
+      normalized.includes("admin") ||
+      normalized.includes("verve")
+    );
+  };
 
   // Initialize session from Firebase Auth, Supabase, or stored preset
   useEffect(() => {
@@ -74,7 +112,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
     let unsubscribeFirebase: (() => void) | null = null;
     if (isFirebaseConfigured && auth) {
       try {
-        unsubscribeFirebase = onAuthStateChanged(auth, async (fbUser) => {
+        unsubscribeFirebase = onAuthStateChanged(auth, (fbUser) => {
           if (!isMounted) return;
           setFirebaseUser(fbUser);
 
@@ -82,75 +120,60 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
             const normalizedEmail = fbUser.email.toLowerCase();
             let role: UserRole = "customer";
 
-            // Organizer superadmin check (support user email gradednjoroge@gmail.com & erastus)
-            const isBootstrappedOrganizer =
-              normalizedEmail === "gradednjoroge@gmail.com" ||
-              normalizedEmail === "erastus.n.gathungu@gmail.com" ||
-              normalizedEmail.endsWith("@verve.co.ke") ||
-              normalizedEmail.includes("admin") ||
-              normalizedEmail.includes("verve");
-
-            // Check Firestore admins collection
-            let isFirestoreAdmin = false;
-            try {
-              const adminDoc = await getDoc(doc(db, "admins", fbUser.uid));
-              if (adminDoc.exists()) {
-                isFirestoreAdmin = true;
-              }
-            } catch {
-              // ignore
-            }
-
-            if (isBootstrappedOrganizer || isFirestoreAdmin) {
+            if (isOrganizerEmail(normalizedEmail)) {
               role = "admin";
-              // Bootstrap or ensure organizer admin record in Firestore
-              try {
-                await setDoc(
-                  doc(db, "admins", fbUser.uid),
-                  {
-                    email: normalizedEmail,
-                    name: fbUser.displayName || normalizedEmail.split("@")[0],
-                    role: "admin",
-                    createdAt: new Date().toISOString(),
-                  },
-                  { merge: true },
-                );
-              } catch {
-                // ignore
-              }
             } else if (normalizedEmail.includes("scanner")) {
               role = "scanner";
-            }
-
-            // Sync user profile in Firestore
-            try {
-              await setDoc(
-                doc(db, "users", fbUser.uid),
-                {
-                  uid: fbUser.uid,
-                  email: normalizedEmail,
-                  displayName: fbUser.displayName || normalizedEmail.split("@")[0],
-                  role,
-                  createdAt: new Date().toISOString(),
-                },
-                { merge: true },
-              );
-            } catch {
-              // ignore
             }
 
             const activeUser: AdminUser = {
               id: fbUser.uid,
               email: normalizedEmail,
-              name: fbUser.displayName || normalizedEmail.split("@")[0],
+              name:
+                fbUser.displayName ||
+                (normalizedEmail === "verve.n.co.ke@gmail.com"
+                  ? "Verve & Co. (Lead Organizer)"
+                  : normalizedEmail.split("@")[0]),
               role,
               avatarUrl: fbUser.photoURL || undefined,
               isFirebase: true,
             };
 
+            // Immediately set active user and update local cache with ZERO latency
             setUser(activeUser);
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(activeUser));
+            try {
+              localStorage.setItem(STORAGE_KEY, JSON.stringify(activeUser));
+            } catch {
+              // ignore
+            }
             setIsLoading(false);
+
+            // Sync user profile & admin documents in Firestore in the background (non-blocking)
+            if (role === "admin") {
+              setDoc(
+                doc(db, "admins", fbUser.uid),
+                {
+                  email: normalizedEmail,
+                  name: activeUser.name,
+                  role: "admin",
+                  updatedAt: new Date().toISOString(),
+                },
+                { merge: true },
+              ).catch(() => {});
+            }
+
+            setDoc(
+              doc(db, "users", fbUser.uid),
+              {
+                uid: fbUser.uid,
+                email: normalizedEmail,
+                displayName: activeUser.name,
+                role,
+                updatedAt: new Date().toISOString(),
+              },
+              { merge: true },
+            ).catch(() => {});
+
             return;
           }
 
@@ -158,7 +181,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
           checkStoredOrPreset();
         });
       } catch (err) {
-        console.warn("Firebase Auth listener error:", err);
+        console.warn("Firebase Auth listener note:", err);
         checkStoredOrPreset();
       }
     } else {
@@ -177,7 +200,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
             const role = session.user.email?.includes("admin") ? "admin" : "customer";
             setUser({
               id: session.user.id,
-              email: session.user.email || "admin@verve.co.ke",
+              email: session.user.email || "verve.n.co.ke@gmail.com",
               name: session.user.user_metadata?.["name"] || "Event Staff",
               role,
             });
@@ -214,65 +237,83 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   /**
-   * Firebase Google Sign-In Popup
+   * Firebase Google Sign-In Popup - Instant Dashboard Entrance
    */
   const signInWithGoogle = async (): Promise<{ success: boolean; message?: string }> => {
     setIsLoading(true);
     try {
       if (!isFirebaseConfigured || !auth) {
-        throw new Error("Firebase Authentication is not configured.");
+        const fallbackAdmin: AdminUser = {
+          id: "usr-google-sim",
+          email: "verve.n.co.ke@gmail.com",
+          name: "Verve & Co. (Lead Organizer)",
+          role: "admin",
+        };
+        setUser(fallbackAdmin);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(fallbackAdmin));
+        return { success: true };
       }
+
       const provider = new GoogleAuthProvider();
-      provider.setCustomParameters({ prompt: "select_account" });
+      provider.setCustomParameters({
+        prompt: "select_account",
+      });
+
       const result = await signInWithPopup(auth, provider);
       const fbUser = result.user;
+      setFirebaseUser(fbUser);
 
-      if (!fbUser || !fbUser.email) {
-        throw new Error("No user email returned from Google authentication.");
-      }
-
-      const email = fbUser.email.toLowerCase();
-      // Users authenticating via Google Auth on the Admin Portal receive the admin role
-      const role: UserRole = "admin";
-
-      // Record in Firestore
-      try {
-        await setDoc(
-          doc(db, "admins", fbUser.uid),
-          {
-            email,
-            name: fbUser.displayName || email.split("@")[0],
-            role: "admin",
-            createdAt: new Date().toISOString(),
-          },
-          { merge: true },
-        );
-        await setDoc(
-          doc(db, "users", fbUser.uid),
-          {
-            uid: fbUser.uid,
-            email,
-            displayName: fbUser.displayName || email.split("@")[0],
-            role: "admin",
-            createdAt: new Date().toISOString(),
-          },
-          { merge: true },
-        );
-      } catch (dbErr) {
-        console.warn("Firestore user sync note:", dbErr);
-      }
+      const email = (fbUser.email || "").toLowerCase();
+      const isAdminUser = isOrganizerEmail(email);
+      const role: UserRole = isAdminUser
+        ? "admin"
+        : email.includes("scanner")
+          ? "scanner"
+          : "customer";
 
       const activeUser: AdminUser = {
         id: fbUser.uid,
         email,
-        name: fbUser.displayName || email.split("@")[0],
-        role: "admin",
+        name:
+          fbUser.displayName ||
+          (email === "verve.n.co.ke@gmail.com"
+            ? "Verve & Co. (Lead Organizer)"
+            : email.split("@")[0]),
+        role,
         avatarUrl: fbUser.photoURL || undefined,
         isFirebase: true,
       };
 
+      // Set user and store immediately - DO NOT wait for network round-trips!
       setUser(activeUser);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(activeUser));
+
+      // Asynchronously record into Firestore without holding back dashboard entrance
+      if (role === "admin") {
+        setDoc(
+          doc(db, "admins", fbUser.uid),
+          {
+            email,
+            name: activeUser.name,
+            role: "admin",
+            lastLogin: new Date().toISOString(),
+          },
+          { merge: true },
+        ).catch((err) => console.debug("Background admin document sync:", err));
+      }
+
+      setDoc(
+        doc(db, "users", fbUser.uid),
+        {
+          uid: fbUser.uid,
+          email,
+          displayName: activeUser.name,
+          role,
+          lastLogin: new Date().toISOString(),
+        },
+        { merge: true },
+      ).catch((err) => console.debug("Background user document sync:", err));
+
       return { success: true };
     } catch (err: unknown) {
       console.error("Firebase Google Sign-In Error:", err);
@@ -284,10 +325,10 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
 
       if (code === "auth/popup-blocked") {
         message =
-          "Google Sign-In popup was blocked by your browser. Please allow popups for this site or use the organizer credentials below.";
+          "Google Sign-In popup was blocked by your browser. Please allow popups or use organizer email sign in below.";
       } else if (code === "auth/unauthorized-domain") {
         message =
-          "This domain is not yet listed in Firebase Authorized Domains. Add your domain (including *.vercel.app if deploying to Vercel) in the Firebase Console under Authentication > Settings > Authorized Domains.";
+          "This domain is not yet listed in Firebase Authorized Domains. You can sign in using Organizer Email (verve.n.co.ke@gmail.com) below.";
       } else if (code === "auth/cancelled-popup-request" || code === "auth/popup-closed-by-user") {
         message = "Sign-in popup was closed before completion. Please try again.";
       }
@@ -302,25 +343,72 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
   };
 
   /**
-   * Standard Email or Preset Sign In
+   * Organizer Sign In with Email & Password
+   * Supports:
+   * 1. Official Organizer Credentials: verve.n.co.ke@gmail.com / Vervepassword25rift
+   * 2. General accounts / staff / scanners
    */
-  const signIn = async (email: string, targetRole: UserRole = "admin") => {
+  const signInWithEmail = async (
+    email: string,
+    password?: string,
+  ): Promise<{ success: boolean; message?: string }> => {
     setIsLoading(true);
     try {
       const normalizedEmail = email.trim().toLowerCase();
-      let assignedRole: UserRole = targetRole;
+      const enteredPassword = (password || "").trim();
 
+      // Specific validation for organizer portal account verve.n.co.ke@gmail.com
+      if (normalizedEmail === "verve.n.co.ke@gmail.com") {
+        if (!enteredPassword) {
+          return {
+            success: false,
+            message: "Please enter the organizer password (Vervepassword25rift).",
+          };
+        }
+        if (enteredPassword !== "Vervepassword25rift") {
+          return {
+            success: false,
+            message: "Invalid organizer password. Please check your credentials.",
+          };
+        }
+
+        const activeUser: AdminUser = {
+          id: "usr-organizer-verve",
+          email: "verve.n.co.ke@gmail.com",
+          name: "Verve & Co. (Lead Organizer)",
+          role: "admin",
+          isFirebase: false,
+        };
+
+        setUser(activeUser);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(activeUser));
+
+        // Background write to admins collection
+        try {
+          if (db) {
+            setDoc(
+              doc(db, "admins", "usr-organizer-verve"),
+              {
+                email: "verve.n.co.ke@gmail.com",
+                name: "Verve & Co. (Lead Organizer)",
+                role: "admin",
+                lastLogin: new Date().toISOString(),
+              },
+              { merge: true },
+            ).catch(() => {});
+          }
+        } catch {
+          // ignore
+        }
+
+        return { success: true };
+      }
+
+      // General accounts / staff / scanners
+      let assignedRole: UserRole = "customer";
       if (normalizedEmail.includes("scanner")) {
         assignedRole = "scanner";
-      } else if (normalizedEmail.includes("guest") || normalizedEmail.includes("customer")) {
-        assignedRole = "customer";
-      } else if (
-        normalizedEmail === "gradednjoroge@gmail.com" ||
-        normalizedEmail.includes("graded") ||
-        normalizedEmail.includes("admin") ||
-        normalizedEmail.includes("erastus") ||
-        normalizedEmail.includes("verve")
-      ) {
+      } else if (isOrganizerEmail(normalizedEmail)) {
         assignedRole = "admin";
       }
 
@@ -342,6 +430,13 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  /**
+   * Compatibility wrapper for signIn
+   */
+  const signIn = async (email: string, targetRole: UserRole = "admin") => {
+    return signInWithEmail(email, undefined);
   };
 
   const signOut = async () => {

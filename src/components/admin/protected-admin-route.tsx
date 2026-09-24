@@ -105,7 +105,7 @@ export function ProtectedAdminRoute({ children }: ProtectedAdminRouteProps) {
                   className="w-full border-border bg-background/60 hover:bg-background text-lavender hover:text-bone text-xs font-mono h-11"
                 >
                   <LogIn className="w-4 h-4 mr-2 text-amber-400" />
-                  Sign In with Organizer Credentials
+                  Sign In with Email (verve.n.co.ke@gmail.com)
                 </Button>
               </Link>
             </div>
