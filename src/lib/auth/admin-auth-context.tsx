@@ -51,7 +51,6 @@ export const isOrganizerEmail = (email?: string | null): boolean => {
   const normalized = email.trim().toLowerCase();
   return (
     normalized === "verve.n.co.ke@gmail.com" ||
-    normalized === "gradednjoroge@gmail.com" ||
     normalized === "erastus.n.gathungu@gmail.com" ||
     normalized.endsWith("@verve.co.ke") ||
     normalized.includes("admin") ||
@@ -82,13 +81,18 @@ export const PRESET_ACCOUNTS: Record<UserRole, AdminUser> = {
 };
 
 export function AdminAuthProvider({ children }: { children: ReactNode }) {
-  // Synchronous hydration from localStorage with automatic organizer fallback
+  // Synchronous hydration from localStorage
   const [user, setUser] = useState<AdminUser | null>(() => {
     if (typeof window !== "undefined") {
       try {
         const stored = localStorage.getItem(STORAGE_KEY);
         if (stored) {
           const parsed = JSON.parse(stored) as AdminUser;
+          // Clear legacy test session if present
+          if (parsed && parsed.email === "gradednjoroge@gmail.com") {
+            localStorage.removeItem(STORAGE_KEY);
+            return null;
+          }
           if (parsed && isOrganizerEmail(parsed.email)) {
             parsed.role = "admin";
           }
@@ -98,22 +102,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
         // ignore
       }
     }
-    // Auto-bootstrap active organizer session so opening the browser is never refused
-    const defaultOrganizer: AdminUser = {
-      id: "usr-admin-organizer",
-      email: "gradednjoroge@gmail.com",
-      name: "Graded Njoroge (Lead Organizer)",
-      role: "admin",
-      isFirebase: false,
-    };
-    try {
-      if (typeof window !== "undefined") {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(defaultOrganizer));
-      }
-    } catch {
-      // ignore
-    }
-    return defaultOrganizer;
+    return null;
   });
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -228,33 +217,23 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
         if (stored) {
           try {
             const parsed = JSON.parse(stored) as AdminUser;
-            if (parsed && isOrganizerEmail(parsed.email)) {
-              parsed.role = "admin";
+            if (parsed && parsed.email === "gradednjoroge@gmail.com") {
+              localStorage.removeItem(STORAGE_KEY);
+              setUser(null);
+            } else if (parsed) {
+              if (isOrganizerEmail(parsed.email)) {
+                parsed.role = "admin";
+              }
+              setUser(parsed);
+            } else {
+              setUser(null);
             }
-            setUser(parsed);
           } catch {
             localStorage.removeItem(STORAGE_KEY);
-            const defaultOrganizer: AdminUser = {
-              id: "usr-admin-organizer",
-              email: "gradednjoroge@gmail.com",
-              name: "Graded Njoroge (Lead Organizer)",
-              role: "admin",
-              isFirebase: false,
-            };
-            setUser(defaultOrganizer);
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(defaultOrganizer));
+            setUser(null);
           }
         } else {
-          // If no stored session, auto-initialize organizer session so browser open is seamless
-          const defaultOrganizer: AdminUser = {
-            id: "usr-admin-organizer",
-            email: "gradednjoroge@gmail.com",
-            name: "Graded Njoroge (Lead Organizer)",
-            role: "admin",
-            isFirebase: false,
-          };
-          setUser(defaultOrganizer);
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(defaultOrganizer));
+          setUser(null);
         }
       } catch (err) {
         console.warn("Auth initialization note:", err);
@@ -356,7 +335,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
           : "";
 
       // In Cloud Run / preview environments where Google popup is blocked or domain is unauthorized,
-      // gracefully authorize as the verified organizer (Graded Njoroge)
+      // gracefully authorize as the verified organizer (Verve & Co.)
       if (
         code === "auth/unauthorized-domain" ||
         code === "auth/popup-blocked" ||
@@ -366,8 +345,8 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
       ) {
         const activeUser: AdminUser = {
           id: "usr-google-verified-organizer",
-          email: "gradednjoroge@gmail.com",
-          name: "Graded Njoroge (Lead Organizer)",
+          email: "verve.n.co.ke@gmail.com",
+          name: "Verve & Co. (Lead Organizer)",
           role: "admin",
           isFirebase: false,
         };

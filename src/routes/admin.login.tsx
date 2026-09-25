@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { useFaviconLoading } from "@/lib/dynamic-favicon";
 
 export const Route = createFileRoute("/admin/login")({
   head: () => ({
@@ -45,6 +46,9 @@ function AdminLogin() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isGoogleSigningIn, setIsGoogleSigningIn] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Dynamic favicon indicates authentication progress
+  useFaviconLoading(isSubmitting || isGoogleSigningIn || isLoading);
 
   const getAdminRedirect = () => {
     if (typeof window !== "undefined" && window.location.search) {

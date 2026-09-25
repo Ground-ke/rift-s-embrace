@@ -14,6 +14,7 @@ import {
   submitMpesaCodeToFirestore,
   type FirestoreOrder,
 } from "@/lib/firebase/firestore-service";
+import { useFaviconLoading } from "@/lib/dynamic-favicon";
 
 const paySearchSchema = z.object({
   orderId: z.string().optional(),
@@ -67,6 +68,11 @@ function PayRouteComponent() {
   const [mpesaReceipt, setMpesaReceipt] = useState<string | null>(null);
   const [firstTicketCode, setFirstTicketCode] = useState<string | null>(null);
   const [secondsRemaining, setSecondsRemaining] = useState<number | undefined>(undefined);
+
+  // Dynamic favicon indicates active order lookup or M-Pesa verification
+  useFaviconLoading(
+    loading || paymentPhase === "submitting" || paymentPhase === "pending_approval",
+  );
 
   // Stable idempotency key initialization — preserved across all retries in this session
 

@@ -38,6 +38,7 @@ import {
   type FirestoreOrder,
 } from "@/lib/firebase/firestore-service";
 import { toast } from "sonner";
+import { useFaviconLoading } from "@/lib/dynamic-favicon";
 
 const ticketNames = ["early-bird", "couple", "couple-pass", "group-of-four"] as const;
 const searchSchema = z.object({
@@ -174,6 +175,14 @@ function Checkout() {
   const [mpesaReceipt, setMpesaReceipt] = useState<string | null>(null);
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [isCancelling, setIsCancelling] = useState(false);
+
+  // Dynamic favicon reflects active order reservation or payment processing
+  useFaviconLoading(
+    isSubmitting ||
+      isSubmittingMpesaCode ||
+      paymentPhase === "submitting" ||
+      paymentPhase === "pending_approval",
+  );
 
   const choice = ticketOptions.find((o) => o.id === selected) || ticketOptions[0] || options[0];
 

@@ -23,6 +23,7 @@ import {
   VerveErrorState,
 } from "@/components/brand/verve-logo";
 import { DigitalTicketData } from "@/components/event/digital-ticket";
+import { useFaviconLoading } from "@/lib/dynamic-favicon";
 
 const recoverSearchSchema = z.object({
   token: z.string().optional(),
@@ -57,6 +58,9 @@ function RecoverRouteComponent() {
   const [formError, setFormError] = useState<string | null>(null);
   const [rateLimited, setRateLimited] = useState(false);
   const [previewToken, setPreviewToken] = useState<string | null>(null);
+
+  // Dynamic favicon reflects ticket recovery lookup or email dispatch
+  useFaviconLoading(isSubmitting || verifyingToken);
 
   // Token Verification State
   const [verifyingToken, setVerifyingToken] = useState(false);

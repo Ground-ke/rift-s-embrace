@@ -13,8 +13,7 @@ interface ProtectedAdminRouteProps {
 }
 
 export function ProtectedAdminRoute({ children }: ProtectedAdminRouteProps) {
-  const { user, role, isLoading, isAuthenticated, isAdmin, signInWithGoogle, signIn } =
-    useAdminAuth();
+  const { user, role, isLoading, isAuthenticated, isAdmin, signInWithGoogle } = useAdminAuth();
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
 
@@ -32,25 +31,6 @@ export function ProtectedAdminRoute({ children }: ProtectedAdminRouteProps) {
       }
     } catch (err) {
       setAuthError(err instanceof Error ? err.message : "Google authentication error.");
-    } finally {
-      setIsGoogleLoading(false);
-    }
-  };
-
-  const handleQuickOrganizerSignIn = async (email = "gradednjoroge@gmail.com") => {
-    setIsGoogleLoading(true);
-    setAuthError(null);
-    try {
-      const res = await signIn(email, "admin");
-      if (res.success) {
-        toast.success("Welcome, Administrator", {
-          description: `Authenticated as ${email}`,
-        });
-      } else {
-        setAuthError(res.message || "Authentication failed.");
-      }
-    } catch (err) {
-      setAuthError(err instanceof Error ? err.message : "Authentication error.");
     } finally {
       setIsGoogleLoading(false);
     }
@@ -100,14 +80,6 @@ export function ProtectedAdminRoute({ children }: ProtectedAdminRouteProps) {
                 <AlertCircle className="w-4 h-4 shrink-0" /> Authentication Notice:
               </div>
               <p>{authError}</p>
-              <Button
-                type="button"
-                size="sm"
-                onClick={() => handleQuickOrganizerSignIn("gradednjoroge@gmail.com")}
-                className="w-full bg-amber-600 hover:bg-amber-500 text-bone text-xs font-mono h-8 mt-2"
-              >
-                Authorize & Enter as Graded Njoroge (Lead Organizer)
-              </Button>
             </div>
           )}
 
@@ -119,18 +91,6 @@ export function ProtectedAdminRoute({ children }: ProtectedAdminRouteProps) {
               label="Sign in with Google"
               className="w-full justify-center h-11"
             />
-
-            {/* Direct 1-Click Lead Organizer Access */}
-            <Button
-              type="button"
-              variant="outline"
-              disabled={isGoogleLoading}
-              onClick={() => handleQuickOrganizerSignIn("gradednjoroge@gmail.com")}
-              className="w-full border-amber-500/40 bg-oxblood/40 hover:bg-oxblood text-amber-200 hover:text-bone text-xs font-mono h-11 transition-all"
-            >
-              <ShieldAlert className="w-4 h-4 mr-2 text-amber-400" />
-              1-Click Organizer Access (gradednjoroge@gmail.com)
-            </Button>
 
             <div className="pt-1">
               <Link

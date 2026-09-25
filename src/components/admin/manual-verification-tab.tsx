@@ -306,28 +306,26 @@ export function ManualVerificationTab() {
         return;
       }
 
-      // Also update in Firestore to keep database sync seamless
-      try {
-        await approveOrderInFirestore({
+      // Also update in Firestore to keep database sync seamless (non-blocking)
+      approveOrderInFirestore({
+        orderId: selectedOrder.id,
+        adminEmail: user?.email || "admin@verve.co.ke",
+        tickets: (data.tickets || []).map((t: Record<string, unknown>) => ({
+          ticketNumber: String(t.ticketNumber || ""),
           orderId: selectedOrder.id,
-          adminEmail: user?.email || "admin@verve.co.ke",
-          tickets: (data.tickets || []).map((t: Record<string, unknown>) => ({
-            ticketNumber: String(t.ticketNumber || ""),
-            orderId: selectedOrder.id,
-            orderNumber: selectedOrder.orderNumber,
-            attendeeName: selectedOrder.customerName,
-            attendeeEmail: selectedOrder.customerEmail,
-            buyerPhone: selectedOrder.customerPhone,
-            tierName: selectedOrder.ticketName,
-            admitsCount: Number(t.admitsCount || 1),
-            priceKes: Number(t.priceKes || selectedOrder.totalKes),
-            qrHash: String(t.qrHash || ""),
-            status: "valid",
-          })),
-        });
-      } catch (fErr) {
-        console.warn("Firestore sync warning on approve:", fErr);
-      }
+          orderNumber: selectedOrder.orderNumber,
+          attendeeName: selectedOrder.customerName,
+          attendeeEmail: selectedOrder.customerEmail,
+          buyerPhone: selectedOrder.customerPhone,
+          tierName: selectedOrder.ticketName,
+          admitsCount: Number(t.admitsCount || 1),
+          priceKes: Number(t.priceKes || selectedOrder.totalKes),
+          qrHash: String(t.qrHash || ""),
+          status: "valid",
+        })),
+      }).catch((fErr) => {
+        console.warn("Firestore background sync note on approve:", fErr);
+      });
 
       // Permanently mark order ID and order number in session ref
       approvedOrderIdsRef.current.add(selectedOrder.id);
@@ -383,16 +381,14 @@ export function ManualVerificationTab() {
         return;
       }
 
-      // Update in Firestore
-      try {
-        await rejectOrderInFirestore({
-          orderId: rejectingOrder.id,
-          reason: rejectionReason,
-          adminEmail: user?.email || "admin@verve.co.ke",
-        });
-      } catch (fErr) {
-        console.warn("Firestore sync warning on reject:", fErr);
-      }
+      // Update in Firestore in background
+      rejectOrderInFirestore({
+        orderId: rejectingOrder.id,
+        reason: rejectionReason,
+        adminEmail: user?.email || "admin@verve.co.ke",
+      }).catch((fErr) => {
+        console.warn("Firestore background sync note on reject:", fErr);
+      });
 
       approvedOrderIdsRef.current.add(rejectingOrder.id);
       approvedOrderIdsRef.current.add(rejectingOrder.orderNumber);

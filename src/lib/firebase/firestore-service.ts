@@ -402,17 +402,27 @@ export async function approveOrderInFirestore(params: {
   try {
     if (!db) return;
     const orderRef = doc(db, "orders", orderId);
-    await updateDoc(orderRef, {
-      status: "approved",
-      approvedBy: adminEmail,
-      approvedAt: new Date().toISOString(),
-      emailSent: true,
-      updatedAt: new Date().toISOString(),
-    });
+    await setDoc(
+      orderRef,
+      {
+        status: "approved",
+        approvedBy: adminEmail,
+        approvedAt: new Date().toISOString(),
+        emailSent: true,
+        updatedAt: new Date().toISOString(),
+      },
+      { merge: true },
+    );
 
-    // Write all issued tickets
-    for (const ticket of tickets) {
-      await saveTicketToFirestore(ticket);
+    // Write all issued tickets in parallel
+    if (Array.isArray(tickets) && tickets.length > 0) {
+      await Promise.all(
+        tickets.map((ticket) =>
+          saveTicketToFirestore(ticket).catch((tErr) => {
+            console.debug("[Firestore] Ticket sync note:", tErr);
+          }),
+        ),
+      );
     }
   } catch (error) {
     console.warn("[Firestore] approveOrderInFirestore note:", error);
@@ -432,12 +442,16 @@ export async function rejectOrderInFirestore(params: {
   try {
     if (!db) return;
     const orderRef = doc(db, "orders", orderId);
-    await updateDoc(orderRef, {
-      status: "rejected",
-      rejectionReason: reason,
-      approvedBy: adminEmail,
-      updatedAt: new Date().toISOString(),
-    });
+    await setDoc(
+      orderRef,
+      {
+        status: "rejected",
+        rejectionReason: reason,
+        approvedBy: adminEmail,
+        updatedAt: new Date().toISOString(),
+      },
+      { merge: true },
+    );
   } catch (error) {
     console.warn("[Firestore] rejectOrderInFirestore note:", error);
   }

@@ -16,6 +16,7 @@ import { VerveErrorState } from "../components/brand/verve-logo";
 import { AdminAuthProvider } from "../lib/auth/admin-auth-context";
 import { analytics } from "../lib/analytics";
 import { CookieConsentBanner } from "../components/legal/cookie-consent-banner";
+import { DynamicFaviconHandler } from "../lib/dynamic-favicon";
 
 function NotFoundComponent() {
   return (
@@ -70,6 +71,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
       { name: "twitter:site", content: "@VerveAndCo" },
+      { name: "theme-color", content: "#120B16" },
+      { name: "msapplication-TileColor", content: "#120B16" },
     ],
     links: [
       {
@@ -82,9 +85,17 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         rel: "stylesheet",
         href: "https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700&family=Cormorant+Garamond:wght@500;600;700&display=swap",
       },
+      // Primary transparent SVG favicon (sharp, vector, scalable)
       { rel: "icon", href: "/favicon.svg", type: "image/svg+xml" },
-      { rel: "shortcut icon", href: "/favicon.svg", type: "image/svg+xml" },
-      { rel: "apple-touch-icon", href: "/favicon.svg" },
+      // High-res transparent PNG favicons for all standard resolutions
+      { rel: "icon", href: "/favicon-32x32.png", type: "image/png", sizes: "32x32" },
+      { rel: "icon", href: "/favicon-16x16.png", type: "image/png", sizes: "16x16" },
+      // Legacy browsers and bookmarks
+      { rel: "shortcut icon", href: "/favicon.ico" },
+      // Apple iOS touch icon
+      { rel: "apple-touch-icon", href: "/apple-touch-icon.png", sizes: "180x180" },
+      // Safari pinned tab mask icon
+      { rel: "mask-icon", href: "/favicon.svg", color: "#FFA63D" },
     ],
   }),
   shellComponent: RootShell,
@@ -118,6 +129,7 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <AdminAuthProvider>
+        <DynamicFaviconHandler />
         <main>
           {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
           <Outlet />
