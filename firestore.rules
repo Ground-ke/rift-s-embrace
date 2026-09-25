@@ -146,7 +146,7 @@ service cloud.firestore {
       allow get: if isValidId(orderId);
       allow list: if isAdmin();
       allow create: if isValidId(orderId) && isValidOrder(request.resource.data) && request.resource.data.status in ['pending', 'pending_approval'];
-      allow update: if isValidId(orderId) && (isAdmin() || (isValidOrder(request.resource.data) && request.resource.data.status == 'pending_approval'));
+      allow update: if isValidId(orderId) && (isAdmin() || (isValidOrder(request.resource.data) && request.resource.data.status in ['pending_approval', 'approved', 'rejected']));
       allow delete: if isAdmin() && isValidId(orderId);
     }
   }

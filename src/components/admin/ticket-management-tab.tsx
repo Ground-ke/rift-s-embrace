@@ -79,7 +79,16 @@ export function TicketManagementTab() {
         const cached = localStorage.getItem("rift_admin_tickets_cache");
         if (cached) {
           const parsed = JSON.parse(cached);
-          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            return parsed.filter(
+              (t) =>
+                t &&
+                typeof t === "object" &&
+                typeof t.ticketNumber === "string" &&
+                t.ticketNumber.trim().length > 0 &&
+                t.attendeeName,
+            );
+          }
         }
       } catch (_e) {
         /* ignore */
@@ -112,12 +121,24 @@ export function TicketManagementTab() {
       const res = await fetch("/api/admin/tickets");
       const data = await res.json();
       if (data.success && Array.isArray(data.tickets)) {
+        const safeServerTickets = data.tickets.filter(
+          (t: TicketItem) =>
+            t &&
+            typeof t === "object" &&
+            typeof t.ticketNumber === "string" &&
+            t.ticketNumber.trim().length > 0 &&
+            t.attendeeName,
+        );
         setTickets((prev) => {
           const map = new Map<string, TicketItem>();
-          prev.forEach((t) => map.set(t.ticketNumber, t));
-          data.tickets.forEach((t: TicketItem) => map.set(t.ticketNumber, t));
+          prev.forEach((t) => {
+            if (t && t.ticketNumber) map.set(t.ticketNumber, t);
+          });
+          safeServerTickets.forEach((t: TicketItem) => map.set(t.ticketNumber, t));
           const sorted = Array.from(map.values()).sort(
-            (a, b) => new Date(b.issuedAt).getTime() - new Date(a.issuedAt).getTime(),
+            (a, b) =>
+              (b.issuedAt ? new Date(b.issuedAt).getTime() : 0) -
+              (a.issuedAt ? new Date(a.issuedAt).getTime() : 0),
           );
           try {
             localStorage.setItem("rift_admin_tickets_cache", JSON.stringify(sorted));
@@ -196,6 +217,7 @@ export function TicketManagementTab() {
   // Filtered tickets
   const filteredTickets = useMemo(() => {
     return tickets.filter((t) => {
+      if (!t || !t.ticketNumber) return false;
       // Status filter
       if (statusFilter !== "all" && t.status !== statusFilter) return false;
       // Tier filter
@@ -203,11 +225,11 @@ export function TicketManagementTab() {
       // Search query
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
-        const matchesCode = t.ticketNumber.toLowerCase().includes(q);
-        const matchesName = t.attendeeName.toLowerCase().includes(q);
-        const matchesEmail = t.buyerEmail?.toLowerCase().includes(q) || false;
-        const matchesPhone = t.buyerPhone.toLowerCase().includes(q);
-        const matchesOrder = t.orderNumber.toLowerCase().includes(q);
+        const matchesCode = t.ticketNumber?.toLowerCase().includes(q) ?? false;
+        const matchesName = t.attendeeName?.toLowerCase().includes(q) ?? false;
+        const matchesEmail = t.buyerEmail?.toLowerCase().includes(q) ?? false;
+        const matchesPhone = t.buyerPhone?.toLowerCase().includes(q) ?? false;
+        const matchesOrder = t.orderNumber?.toLowerCase().includes(q) ?? false;
         if (!matchesCode && !matchesName && !matchesEmail && !matchesPhone && !matchesOrder) {
           return false;
         }
@@ -546,7 +568,7 @@ export function TicketManagementTab() {
 
                     {/* Price */}
                     <TableCell className="font-mono text-xs text-bone font-medium">
-                      KES {ticket.priceKes.toLocaleString()}
+                      KES {(ticket.priceKes ?? 0).toLocaleString()}
                     </TableCell>
 
                     {/* Status */}

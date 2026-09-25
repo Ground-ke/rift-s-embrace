@@ -992,35 +992,7 @@ export class OrderService {
     }
 
     if (!order) {
-      // Auto-recover order so approval never fails even across restarts
-      const randomSuffix = Math.floor(100000 + Math.random() * 900000);
-      order = {
-        id: orderId,
-        orderNumber: `HRT-2026-${randomSuffix}`,
-        checkoutToken: `tok_${randomUUID().replace(/-/g, "").slice(0, 16)}`,
-        eventId: "hauntings-2026",
-        ticketTypeId: "early-bird",
-        ticketName: "Early Bird",
-        admitsCount: 1,
-        quantity: 1,
-        unitPriceKes: 1000,
-        discountKes: 0,
-        subtotalKes: 1000,
-        totalKes: 1000,
-        currency: "KES",
-        buyerName: "Event Attendee",
-        buyerPhone: "0700000000",
-        buyerEmail: "attendee@verve.co.ke",
-        status: "approved",
-        approvedBy: adminEmail,
-        approvedAt: new Date().toISOString(),
-        expiresAt: new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString(),
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-      ordersStore.set(orderId, order);
-      PersistentStore.saveOrders(ordersStore);
-      return { success: true, order, message: "Order registered and approved successfully." };
+      return { success: false, code: "NOT_FOUND", message: "Order not found." };
     }
 
     order.status = "approved";

@@ -90,6 +90,7 @@ export function ManualVerificationTab() {
   });
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const hasAutoSelectedRef = useRef(false);
+  const approvedOrderIdsRef = useRef<Set<string>>(new Set());
 
   // Approval Modal State
   const [selectedOrder, setSelectedOrder] = useState<PendingOrderRecord | null>(null);
@@ -126,12 +127,12 @@ export function ManualVerificationTab() {
           rejectionReason: o.rejectionReason ? String(o.rejectionReason) : undefined,
           approvedBy: o.approvedBy ? String(o.approvedBy) : undefined,
         }));
-        setOrders((prev) => {
-          const map = new Map<string, PendingOrderRecord>();
-          prev.forEach((item) => map.set(item.id, item));
-          mapped.forEach((item) => map.set(item.id, item));
-          const result = Array.from(map.values()).filter(
-            (o) => o.status === "pending_approval" || o.status === "pending",
+        setOrders(() => {
+          const result = mapped.filter(
+            (o) =>
+              (o.status === "pending_approval" || o.status === "pending") &&
+              !approvedOrderIdsRef.current.has(o.id) &&
+              !approvedOrderIdsRef.current.has(o.orderNumber),
           );
           try {
             localStorage.setItem("rift_admin_pending_orders_cache", JSON.stringify(result));
@@ -154,11 +155,42 @@ export function ManualVerificationTab() {
 
     // Listen to real-time updates from Firestore
     const unsubscribe = subscribeToPendingOrders((firestoreOrders) => {
-      if (firestoreOrders && firestoreOrders.length > 0) {
+      if (Array.isArray(firestoreOrders)) {
+        if (firestoreOrders.length === 0) {
+          // If Firestore reports 0 pending orders, update state
+          setOrders((prev) => {
+            const serverRemaining = prev.filter(
+              (o) =>
+                !approvedOrderIdsRef.current.has(o.id) &&
+                !approvedOrderIdsRef.current.has(o.orderNumber),
+            );
+            return serverRemaining;
+          });
+          return;
+        }
+
         setOrders((prev) => {
-          const merged = [...prev];
+          const map = new Map<string, PendingOrderRecord>();
+          // Add previously known orders that are not approved
+          prev.forEach((o) => {
+            if (
+              !approvedOrderIdsRef.current.has(o.id) &&
+              !approvedOrderIdsRef.current.has(o.orderNumber)
+            ) {
+              map.set(o.id, o);
+            }
+          });
+
           for (const fo of firestoreOrders) {
-            const idx = merged.findIndex((o) => o.id === fo.orderId);
+            if (
+              approvedOrderIdsRef.current.has(fo.orderId) ||
+              approvedOrderIdsRef.current.has(fo.orderNumber || "") ||
+              (fo.status !== "pending_approval" && fo.status !== "pending")
+            ) {
+              map.delete(fo.orderId);
+              continue;
+            }
+
             const item: PendingOrderRecord = {
               id: fo.orderId,
               orderNumber: fo.orderNumber || fo.orderId,
@@ -176,14 +208,14 @@ export function ManualVerificationTab() {
               rejectionReason: fo.rejectionReason,
               approvedBy: fo.approvedBy,
             };
-            if (idx >= 0) {
-              merged[idx] = item;
-            } else {
-              merged.unshift(item);
-            }
+            map.set(fo.orderId, item);
           }
-          const filtered = merged.filter(
-            (o) => o.status === "pending_approval" || o.status === "pending",
+
+          const filtered = Array.from(map.values()).filter(
+            (o) =>
+              (o.status === "pending_approval" || o.status === "pending") &&
+              !approvedOrderIdsRef.current.has(o.id) &&
+              !approvedOrderIdsRef.current.has(o.orderNumber),
           );
           try {
             localStorage.setItem("rift_admin_pending_orders_cache", JSON.stringify(filtered));
@@ -297,6 +329,10 @@ export function ManualVerificationTab() {
         console.warn("Firestore sync warning on approve:", fErr);
       }
 
+      // Permanently mark order ID and order number in session ref
+      approvedOrderIdsRef.current.add(selectedOrder.id);
+      approvedOrderIdsRef.current.add(selectedOrder.orderNumber);
+
       toast.success(
         `Order ${selectedOrder.orderNumber} approved! Ticket email sent to ${selectedOrder.customerEmail}`,
         { duration: 5000 },
@@ -304,7 +340,9 @@ export function ManualVerificationTab() {
 
       // Remove approved order from pending list and sync cache
       setOrders((prev) => {
-        const next = prev.filter((o) => o.id !== selectedOrder.id);
+        const next = prev.filter(
+          (o) => o.id !== selectedOrder.id && o.orderNumber !== selectedOrder.orderNumber,
+        );
         try {
           localStorage.setItem("rift_admin_pending_orders_cache", JSON.stringify(next));
         } catch (_e) {
@@ -356,8 +394,21 @@ export function ManualVerificationTab() {
         console.warn("Firestore sync warning on reject:", fErr);
       }
 
+      approvedOrderIdsRef.current.add(rejectingOrder.id);
+      approvedOrderIdsRef.current.add(rejectingOrder.orderNumber);
+
       toast.info(`Order ${rejectingOrder.orderNumber} marked as rejected.`);
-      setOrders((prev) => prev.filter((o) => o.id !== rejectingOrder.id));
+      setOrders((prev) => {
+        const next = prev.filter(
+          (o) => o.id !== rejectingOrder.id && o.orderNumber !== rejectingOrder.orderNumber,
+        );
+        try {
+          localStorage.setItem("rift_admin_pending_orders_cache", JSON.stringify(next));
+        } catch (_e) {
+          /* ignore */
+        }
+        return next;
+      });
       setRejectingOrder(null);
     } catch (err) {
       toast.error("Network error during rejection.");

@@ -181,7 +181,15 @@ export class AdminServerService {
     status?: string;
     tier?: string;
   }): DigitalTicketRecord[] {
-    let tickets = TicketsServerService.getAllTickets();
+    let tickets = TicketsServerService.getAllTickets().filter((t): t is DigitalTicketRecord =>
+      Boolean(
+        t &&
+        typeof t === "object" &&
+        typeof t.ticketNumber === "string" &&
+        t.ticketNumber.trim().length > 0 &&
+        t.attendeeName,
+      ),
+    );
 
     if (filters?.status && filters.status !== "all") {
       tickets = tickets.filter((t) => t.status === filters.status);
@@ -195,16 +203,20 @@ export class AdminServerService {
       const q = filters.search.trim().toLowerCase();
       tickets = tickets.filter(
         (t) =>
-          t.ticketNumber.toLowerCase().includes(q) ||
-          t.attendeeName.toLowerCase().includes(q) ||
-          (t.buyerEmail && t.buyerEmail.toLowerCase().includes(q)) ||
-          t.buyerPhone.toLowerCase().includes(q) ||
-          t.orderNumber.toLowerCase().includes(q),
+          (t.ticketNumber?.toLowerCase().includes(q) ?? false) ||
+          (t.attendeeName?.toLowerCase().includes(q) ?? false) ||
+          (t.buyerEmail?.toLowerCase().includes(q) ?? false) ||
+          (t.buyerPhone?.toLowerCase().includes(q) ?? false) ||
+          (t.orderNumber?.toLowerCase().includes(q) ?? false),
       );
     }
 
     // Sort newest issued first
-    return tickets.sort((a, b) => new Date(b.issuedAt).getTime() - new Date(a.issuedAt).getTime());
+    return tickets.sort((a, b) => {
+      const timeB = b.issuedAt ? new Date(b.issuedAt).getTime() : 0;
+      const timeA = a.issuedAt ? new Date(a.issuedAt).getTime() : 0;
+      return timeB - timeA;
+    });
   }
 
   /**

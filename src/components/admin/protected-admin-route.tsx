@@ -13,7 +13,8 @@ interface ProtectedAdminRouteProps {
 }
 
 export function ProtectedAdminRoute({ children }: ProtectedAdminRouteProps) {
-  const { user, role, isLoading, isAuthenticated, isAdmin, signInWithGoogle, signIn } = useAdminAuth();
+  const { user, role, isLoading, isAuthenticated, isAdmin, signInWithGoogle, signIn } =
+    useAdminAuth();
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
 
@@ -134,7 +135,11 @@ export function ProtectedAdminRoute({ children }: ProtectedAdminRouteProps) {
             <div className="pt-1">
               <Link
                 to="/admin/login"
-                search={typeof window !== "undefined" ? Object.fromEntries(new URLSearchParams(window.location.search)) : {}}
+                search={
+                  typeof window !== "undefined"
+                    ? Object.fromEntries(new URLSearchParams(window.location.search))
+                    : {}
+                }
                 className="block"
               >
                 <Button
