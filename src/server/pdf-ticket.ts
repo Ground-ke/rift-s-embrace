@@ -3,6 +3,11 @@ import QRCode from "qrcode";
 import sharp from "sharp";
 import fs from "fs";
 import path from "path";
+import { createRequire } from "module";
+import type { Font } from "opentype.js";
+
+const require = createRequire(import.meta.url);
+const opentype = require("opentype.js");
 
 export interface TicketPdfOptions {
   ticketCode: string;
@@ -16,6 +21,77 @@ export interface TicketPdfOptions {
   issuedDate?: string;
   venueName?: string;
   venueCity?: string;
+}
+
+// Cached OpenType fonts to prevent disk re-reads on every ticket generation
+let serifBoldFont: Font | null = null;
+let serifRegularFont: Font | null = null;
+let sansBoldFont: Font | null = null;
+let monoBoldFont: Font | null = null;
+
+function loadFontFromPaths(candidates: string[]): Font | null {
+  for (const candidate of candidates) {
+    const resolved = path.isAbsolute(candidate)
+      ? candidate
+      : path.resolve(process.cwd(), candidate);
+    if (fs.existsSync(resolved)) {
+      try {
+        const buffer = fs.readFileSync(resolved);
+        return opentype.parse(
+          buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength),
+        );
+      } catch (err) {
+        console.warn(`[TicketGenerator] Failed to parse font from ${resolved}:`, err);
+      }
+    }
+  }
+  return null;
+}
+
+function getSerifBold(): Font | null {
+  if (!serifBoldFont) {
+    serifBoldFont = loadFontFromPaths([
+      "src/server/fonts/Serif-Bold.ttf",
+      "/usr/share/fonts/truetype/liberation/LiberationSerif-Bold.ttf",
+      "/usr/share/fonts/truetype/freefont/FreeSerifBold.ttf",
+    ]);
+  }
+  return serifBoldFont;
+}
+
+function getSerifRegular(): Font | null {
+  if (!serifRegularFont) {
+    serifRegularFont = loadFontFromPaths([
+      "src/server/fonts/Serif-Regular.ttf",
+      "src/server/fonts/Serif-Bold.ttf",
+      "/usr/share/fonts/truetype/liberation/LiberationSerif-Regular.ttf",
+      "/usr/share/fonts/truetype/freefont/FreeSerif.ttf",
+    ]);
+  }
+  return serifRegularFont;
+}
+
+function getSansBold(): Font | null {
+  if (!sansBoldFont) {
+    sansBoldFont = loadFontFromPaths([
+      "src/server/fonts/Sans-Bold.ttf",
+      "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+      "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf",
+    ]);
+  }
+  return sansBoldFont;
+}
+
+function getMonoBold(): Font | null {
+  if (!monoBoldFont) {
+    monoBoldFont = loadFontFromPaths([
+      "src/server/fonts/Mono-Bold.ttf",
+      "src/server/fonts/Sans-Bold.ttf",
+      "/usr/share/fonts/truetype/liberation/LiberationMono-Bold.ttf",
+      "/usr/share/fonts/truetype/freefont/FreeMonoBold.ttf",
+    ]);
+  }
+  return monoBoldFont;
 }
 
 /**
@@ -38,6 +114,73 @@ function escapeXml(unsafe: string): string {
         return c;
     }
   });
+}
+
+/**
+ * Renders text into pure SVG vector paths (<path d="..." />)
+ * Completely eliminates tofu boxes (▯) in all container environments like Cloud Run,
+ * because vector paths have ZERO dependence on system font installations!
+ */
+function renderTextVector(params: {
+  font: Font | null;
+  text: string;
+  x: number;
+  y: number;
+  fontSize: number;
+  fill?: string;
+  textAnchor?: "left" | "middle" | "end";
+  letterSpacing?: number;
+  fallbackFontFamily?: string;
+  fontWeight?: string;
+}): string {
+  const {
+    font,
+    text,
+    fontSize,
+    fill = "#EDEAE3",
+    textAnchor = "left",
+    letterSpacing = 0,
+    fallbackFontFamily = "'Cinzel', 'Georgia', serif",
+    fontWeight = "normal",
+  } = params;
+
+  if (!text) return "";
+
+  // If opentype font is available, render as 100% immune vector paths
+  if (font) {
+    let totalWidth = 0;
+    for (let i = 0; i < text.length; i++) {
+      const glyph = font.charToGlyph(text[i]);
+      const advance =
+        (glyph.advanceWidth || 0) * (fontSize / font.unitsPerEm) +
+        (i < text.length - 1 ? letterSpacing : 0);
+      totalWidth += advance;
+    }
+
+    let startX = params.x;
+    if (textAnchor === "middle") {
+      startX = params.x - totalWidth / 2;
+    } else if (textAnchor === "end") {
+      startX = params.x - totalWidth;
+    }
+
+    let paths = "";
+    let curX = startX;
+    for (let i = 0; i < text.length; i++) {
+      const glyph = font.charToGlyph(text[i]);
+      const glyphPath = glyph.getPath(curX, params.y, fontSize);
+      const svgPath = glyphPath.toSVG(2);
+      if (svgPath && svgPath.includes(' d="M')) {
+        paths += svgPath.replace("<path", `<path fill="${fill}"`) + "\n";
+      }
+      curX += (glyph.advanceWidth || 0) * (fontSize / font.unitsPerEm) + letterSpacing;
+    }
+
+    return paths;
+  }
+
+  // Graceful fallback to SVG <text> tag if font file is missing
+  return `<text x="${params.x}" y="${params.y}" text-anchor="${textAnchor}" font-family="${fallbackFontFamily}" font-size="${fontSize}" font-weight="${fontWeight}" fill="${fill}" letter-spacing="${letterSpacing}">${escapeXml(text)}</text>`;
 }
 
 /**
@@ -75,11 +218,184 @@ export async function generateTicketPassSvg(options: TicketPdfOptions): Promise<
     },
   });
 
-  const safeCustomerName = escapeXml(customerName);
-  const safeTierName = escapeXml(tierName);
-  const safeTicketCode = escapeXml(ticketCode);
-  const safeOrderNumber = escapeXml(orderNumber);
-  const safeIssuedDate = escapeXml(issuedDate);
+  const serifBold = getSerifBold();
+  const serifRegular = getSerifRegular();
+  const sansBold = getSansBold();
+  const monoBold = getMonoBold();
+
+  // Pre-render all typography into pure SVG vector paths
+  const scanLabelVector = renderTextVector({
+    font: serifRegular,
+    text: "scan at venue entry",
+    x: 500,
+    y: 375,
+    fontSize: 18,
+    fill: "#EDEAE3",
+    textAnchor: "middle",
+    letterSpacing: 1.5,
+  });
+
+  const titleHauntingsVector = renderTextVector({
+    font: serifBold,
+    text: "HAUNTINGS",
+    x: 500,
+    y: 460,
+    fontSize: 76,
+    fill: "#EDEAE3",
+    textAnchor: "middle",
+    letterSpacing: 6,
+    fontWeight: "bold",
+  });
+
+  const titleOfVector = renderTextVector({
+    font: serifBold,
+    text: "OF",
+    x: 500,
+    y: 545,
+    fontSize: 62,
+    fill: "#EDEAE3",
+    textAnchor: "middle",
+    letterSpacing: 4,
+    fontWeight: "bold",
+  });
+
+  const titleTheRiftVector = renderTextVector({
+    font: serifBold,
+    text: "THE RIFT",
+    x: 500,
+    y: 635,
+    fontSize: 76,
+    fill: "#EDEAE3",
+    textAnchor: "middle",
+    letterSpacing: 6,
+    fontWeight: "bold",
+  });
+
+  const oct31Vector = renderTextVector({
+    font: serifBold,
+    text: "OCT 31",
+    x: 235,
+    y: 740,
+    fontSize: 36,
+    fill: "#FFFFFF",
+    textAnchor: "middle",
+    letterSpacing: 3,
+    fontWeight: "bold",
+  });
+
+  const timeVector = renderTextVector({
+    font: serifBold,
+    text: "4-10 PM",
+    x: 765,
+    y: 740,
+    fontSize: 36,
+    fill: "#FFFFFF",
+    textAnchor: "middle",
+    letterSpacing: 3,
+    fontWeight: "bold",
+  });
+
+  const venueTitleVector = renderTextVector({
+    font: serifBold,
+    text: "TOPCLIFF LODGE",
+    x: 500,
+    y: 825,
+    fontSize: 38,
+    fill: "#EDEAE3",
+    textAnchor: "middle",
+    letterSpacing: 4,
+    fontWeight: "bold",
+  });
+
+  const venueCityVector = renderTextVector({
+    font: serifBold,
+    text: "NAKURU",
+    x: 500,
+    y: 870,
+    fontSize: 34,
+    fill: "#EDEAE3",
+    textAnchor: "middle",
+    letterSpacing: 6,
+    fontWeight: "bold",
+  });
+
+  const holderHeaderVector = renderTextVector({
+    font: sansBold,
+    text: "TICKET HOLDER",
+    x: 280,
+    y: 925,
+    fontSize: 20,
+    fill: "#9CA3AF",
+    textAnchor: "middle",
+    letterSpacing: 2,
+  });
+
+  const holderNameVector = renderTextVector({
+    font: serifBold,
+    text: (customerName || "Valued Attendee").toUpperCase(),
+    x: 280,
+    y: 958,
+    fontSize: 24,
+    fill: "#FFFFFF",
+    textAnchor: "middle",
+    fontWeight: "bold",
+  });
+
+  const typeHeaderVector = renderTextVector({
+    font: sansBold,
+    text: "TICKET TYPE",
+    x: 720,
+    y: 925,
+    fontSize: 20,
+    fill: "#9CA3AF",
+    textAnchor: "middle",
+    letterSpacing: 2,
+  });
+
+  const typeNameVector = renderTextVector({
+    font: serifBold,
+    text: (tierName || "General Admission Pass").toUpperCase(),
+    x: 720,
+    y: 958,
+    fontSize: 24,
+    fill: "#FFFFFF",
+    textAnchor: "middle",
+    fontWeight: "bold",
+  });
+
+  const rsvpHeaderVector = renderTextVector({
+    font: sansBold,
+    text: "RSVP CODE",
+    x: 500,
+    y: 1025,
+    fontSize: 20,
+    fill: "#9CA3AF",
+    textAnchor: "middle",
+    letterSpacing: 2,
+  });
+
+  const rsvpCodeVector = renderTextVector({
+    font: monoBold,
+    text: ticketCode,
+    x: 500,
+    y: 1065,
+    fontSize: 34,
+    fill: "#F59E0B",
+    textAnchor: "middle",
+    letterSpacing: 4,
+    fontWeight: "bold",
+  });
+
+  const footerVector = renderTextVector({
+    font: sansBold,
+    text: `Order #${orderNumber}  •  Issued ${issuedDate}  •  Valid for single entry. Non-transferable`,
+    x: 500,
+    y: 1205,
+    fontSize: 15,
+    fill: "#9CA3AF",
+    textAnchor: "middle",
+    letterSpacing: 0.5,
+  });
 
   return `
   <svg width="1000" height="1250" viewBox="0 0 1000 1250" xmlns="http://www.w3.org/2000/svg">
@@ -148,13 +464,13 @@ export async function generateTicketPassSvg(options: TicketPdfOptions): Promise<
     <rect x="385" y="108" width="230" height="230" rx="22" ry="22" fill="#FFFFFF" />
     <image href="${qrDataUrl}" x="395" y="118" width="210" height="210" />
 
-    <!-- "scan at venue entry" Label -->
-    <text x="500" y="375" text-anchor="middle" font-family="'Cinzel', 'Georgia', 'Times New Roman', serif" font-size="18" fill="#EDEAE3" letter-spacing="1.5">scan at venue entry</text>
+    <!-- "scan at venue entry" Label (Rendered as Vector Paths) -->
+    ${scanLabelVector}
 
-    <!-- TITLE: HAUNTINGS OF THE RIFT -->
-    <text x="500" y="460" text-anchor="middle" font-family="'Cinzel', 'Georgia', 'Times New Roman', serif" font-size="76" font-weight="bold" fill="#EDEAE3" letter-spacing="6">HAUNTINGS</text>
-    <text x="500" y="545" text-anchor="middle" font-family="'Cinzel', 'Georgia', 'Times New Roman', serif" font-size="62" font-weight="bold" fill="#EDEAE3" letter-spacing="4">OF</text>
-    <text x="500" y="635" text-anchor="middle" font-family="'Cinzel', 'Georgia', 'Times New Roman', serif" font-size="76" font-weight="bold" fill="#EDEAE3" letter-spacing="6">THE RIFT</text>
+    <!-- TITLE: HAUNTINGS OF THE RIFT (Rendered as Vector Paths) -->
+    ${titleHauntingsVector}
+    ${titleOfVector}
+    ${titleTheRiftVector}
 
     <!-- TILTED MARTINI COCKTAIL GLASS (RIGHT) -->
     <g transform="translate(825, 480) rotate(16)">
@@ -169,7 +485,7 @@ export async function generateTicketPassSvg(options: TicketPdfOptions): Promise<
 
     <!-- DATE & TIME BAND WITH SPIDER ICON -->
     <line x1="120" y1="700" x2="350" y2="700" stroke="#FFFFFF" stroke-opacity="0.8" stroke-width="2" />
-    <text x="235" y="740" text-anchor="middle" font-family="'Cinzel', 'Georgia', serif" font-size="36" font-weight="bold" fill="#FFFFFF" letter-spacing="3">OCT 31</text>
+    ${oct31Vector}
     <line x1="120" y1="755" x2="350" y2="755" stroke="#FFFFFF" stroke-opacity="0.8" stroke-width="2" />
 
     <!-- Center Spider Silhouette -->
@@ -183,23 +499,23 @@ export async function generateTicketPassSvg(options: TicketPdfOptions): Promise<
     </g>
 
     <line x1="650" y1="700" x2="880" y2="700" stroke="#FFFFFF" stroke-opacity="0.8" stroke-width="2" />
-    <text x="765" y="740" text-anchor="middle" font-family="'Cinzel', 'Georgia', serif" font-size="36" font-weight="bold" fill="#FFFFFF" letter-spacing="3">4-10 PM</text>
+    ${timeVector}
     <line x1="650" y1="755" x2="880" y2="755" stroke="#FFFFFF" stroke-opacity="0.8" stroke-width="2" />
 
     <!-- VENUE: TOPCLIFF LODGE NAKURU -->
-    <text x="500" y="825" text-anchor="middle" font-family="'Cinzel', 'Georgia', 'Times New Roman', serif" font-size="38" font-weight="bold" fill="#EDEAE3" letter-spacing="4">TOPCLIFF LODGE</text>
-    <text x="500" y="870" text-anchor="middle" font-family="'Cinzel', 'Georgia', 'Times New Roman', serif" font-size="34" font-weight="bold" fill="#EDEAE3" letter-spacing="6">NAKURU</text>
+    ${venueTitleVector}
+    ${venueCityVector}
 
     <!-- TICKET DETAILS GRID -->
-    <text x="280" y="925" text-anchor="middle" font-family="'Cinzel', 'Georgia', serif" font-size="20" fill="#9CA3AF" letter-spacing="2">TICKET HOLDER</text>
-    <text x="280" y="958" text-anchor="middle" font-family="'Georgia', serif" font-size="24" font-weight="bold" fill="#FFFFFF">${safeCustomerName}</text>
+    ${holderHeaderVector}
+    ${holderNameVector}
 
-    <text x="720" y="925" text-anchor="middle" font-family="'Cinzel', 'Georgia', serif" font-size="20" fill="#9CA3AF" letter-spacing="2">TICKET TYPE</text>
-    <text x="720" y="958" text-anchor="middle" font-family="'Georgia', serif" font-size="24" font-weight="bold" fill="#FFFFFF">${safeTierName}</text>
+    ${typeHeaderVector}
+    ${typeNameVector}
 
     <!-- RSVP CODE -->
-    <text x="500" y="1025" text-anchor="middle" font-family="'Cinzel', 'Georgia', serif" font-size="20" fill="#9CA3AF" letter-spacing="2">RSVP CODE</text>
-    <text x="500" y="1065" text-anchor="middle" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="34" font-weight="bold" fill="#F59E0B" letter-spacing="4">${safeTicketCode}</text>
+    ${rsvpHeaderVector}
+    ${rsvpCodeVector}
 
     <!-- BOTTOM-LEFT COBWEB -->
     <g stroke="#FFFFFF" stroke-opacity="0.6" stroke-width="1.5" fill="none">
@@ -224,9 +540,7 @@ export async function generateTicketPassSvg(options: TicketPdfOptions): Promise<
     </g>
 
     <!-- FOOTER BAR -->
-    <text x="80" y="1200" font-family="-apple-system, sans-serif" font-size="15" fill="#9CA3AF">Order # <tspan fill="#EDEAE3">${safeOrderNumber}</tspan></text>
-    <text x="280" y="1200" font-family="-apple-system, sans-serif" font-size="15" fill="#9CA3AF">Issued <tspan fill="#EDEAE3">${safeIssuedDate}</tspan></text>
-    <text x="520" y="1200" font-family="-apple-system, sans-serif" font-size="15" fill="#9CA3AF">| Valid for single entry. Non-transferable</text>
+    ${footerVector}
   </svg>
   `;
 }
