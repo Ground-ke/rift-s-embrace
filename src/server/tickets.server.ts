@@ -400,7 +400,16 @@ export class TicketsServerService {
     message?: string;
   } {
     const normalized = code.trim().toUpperCase();
-    const ticket = ticketsStore.get(normalized);
+    let ticket = ticketsStore.get(normalized);
+
+    // If not found in memory, re-read disk store in case another process/thread persisted it
+    if (!ticket) {
+      const refreshedStore = PersistentStore.loadTickets();
+      for (const [k, v] of refreshedStore.entries()) {
+        ticketsStore.set(k, v);
+      }
+      ticket = ticketsStore.get(normalized);
+    }
 
     if (!ticket) {
       return {
