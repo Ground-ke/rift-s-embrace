@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import {
   ShieldCheck,
   CheckCircle2,
@@ -60,10 +60,36 @@ export interface PendingOrderRecord {
 
 export function ManualVerificationTab() {
   const { user } = useAdminAuth();
-  const [orders, setOrders] = useState<PendingOrderRecord[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState("");
+
+  // Instant synchronous hydration from localStorage so orders never vanish upon tab switch or navigation
+  const [orders, setOrders] = useState<PendingOrderRecord[]>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const cached = localStorage.getItem("rift_admin_pending_orders_cache");
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      } catch (_e) {
+        /* ignore */
+      }
+    }
+    return [];
+  });
+  const [loading, setLoading] = useState(orders.length === 0);
+  const [searchQuery, setSearchQuery] = useState(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        return params.get("order") || params.get("orderId") || "";
+      } catch (_e) {
+        /* ignore */
+      }
+    }
+    return "";
+  });
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
+  const hasAutoSelectedRef = useRef(false);
 
   // Approval Modal State
   const [selectedOrder, setSelectedOrder] = useState<PendingOrderRecord | null>(null);
@@ -79,7 +105,6 @@ export function ManualVerificationTab() {
 
   // Fetch pending orders from API
   const fetchPendingOrders = async () => {
-    setLoading(true);
     try {
       const res = await fetch("/api/admin/orders/pending");
       const data = await res.json();
@@ -101,7 +126,20 @@ export function ManualVerificationTab() {
           rejectionReason: o.rejectionReason ? String(o.rejectionReason) : undefined,
           approvedBy: o.approvedBy ? String(o.approvedBy) : undefined,
         }));
-        setOrders(mapped);
+        setOrders((prev) => {
+          const map = new Map<string, PendingOrderRecord>();
+          prev.forEach((item) => map.set(item.id, item));
+          mapped.forEach((item) => map.set(item.id, item));
+          const result = Array.from(map.values()).filter(
+            (o) => o.status === "pending_approval" || o.status === "pending",
+          );
+          try {
+            localStorage.setItem("rift_admin_pending_orders_cache", JSON.stringify(result));
+          } catch (_e) {
+            /* ignore */
+          }
+          return result;
+        });
       }
     } catch (err) {
       console.warn("Failed to fetch pending orders from API:", err);
@@ -144,7 +182,15 @@ export function ManualVerificationTab() {
               merged.unshift(item);
             }
           }
-          return merged;
+          const filtered = merged.filter(
+            (o) => o.status === "pending_approval" || o.status === "pending",
+          );
+          try {
+            localStorage.setItem("rift_admin_pending_orders_cache", JSON.stringify(filtered));
+          } catch (_e) {
+            /* ignore */
+          }
+          return filtered;
         });
       }
     });
@@ -153,6 +199,34 @@ export function ManualVerificationTab() {
       if (unsubscribe) unsubscribe();
     };
   }, []);
+
+  // Auto-open approval dialog if navigating directly from email alert with an order parameter
+  useEffect(() => {
+    if (typeof window === "undefined" || hasAutoSelectedRef.current || orders.length === 0) return;
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const target = params.get("order") || params.get("orderId");
+      if (!target) return;
+
+      const targetNorm = target.trim().toLowerCase();
+      const matched = orders.find(
+        (o) =>
+          o.orderNumber.toLowerCase() === targetNorm ||
+          o.id.toLowerCase() === targetNorm ||
+          (o.mpesaCode && o.mpesaCode.toLowerCase() === targetNorm),
+      );
+
+      if (matched) {
+        hasAutoSelectedRef.current = true;
+        setSelectedOrder(matched);
+        toast.info(`Opened Order #${matched.orderNumber} for Review`, {
+          description: `Customer: ${matched.customerName} (${matched.mpesaCode || "M-Pesa Pending"})`,
+        });
+      }
+    } catch (_e) {
+      /* ignore */
+    }
+  }, [orders]);
 
   // Filter orders by search
   const filteredOrders = useMemo(() => {
@@ -228,8 +302,16 @@ export function ManualVerificationTab() {
         { duration: 5000 },
       );
 
-      // Remove approved order from pending list
-      setOrders((prev) => prev.filter((o) => o.id !== selectedOrder.id));
+      // Remove approved order from pending list and sync cache
+      setOrders((prev) => {
+        const next = prev.filter((o) => o.id !== selectedOrder.id);
+        try {
+          localStorage.setItem("rift_admin_pending_orders_cache", JSON.stringify(next));
+        } catch (_e) {
+          /* ignore */
+        }
+        return next;
+      });
       setSelectedOrder(null);
       setApprovalNotes("");
     } catch (err) {

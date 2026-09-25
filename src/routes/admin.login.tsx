@@ -46,15 +46,22 @@ function AdminLogin() {
   const [isGoogleSigningIn, setIsGoogleSigningIn] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  const getAdminRedirect = () => {
+    if (typeof window !== "undefined" && window.location.search) {
+      return `/admin${window.location.search}`;
+    }
+    return "/admin";
+  };
+
   // If already authenticated as admin, provide instant redirect to admin dashboard
   useEffect(() => {
     if (!isLoading && isAuthenticated && isAdmin) {
       const timer = setTimeout(() => {
-        navigate({ to: "/admin" });
+        window.location.href = getAdminRedirect();
       }, 300);
       return () => clearTimeout(timer);
     }
-  }, [isLoading, isAuthenticated, isAdmin, navigate]);
+  }, [isLoading, isAuthenticated, isAdmin]);
 
   // Quick fill organizer credentials
   const handleFillOrganizerCredentials = () => {
@@ -73,10 +80,10 @@ function AdminLogin() {
     try {
       const res = await signInWithGoogle();
       if (res.success) {
-        toast.success("Authenticated with Google", {
+        toast.success("Authenticated as Event Administrator", {
           description: "Welcome to Verve & Co. Operations Dashboard",
         });
-        navigate({ to: "/admin" });
+        window.location.href = getAdminRedirect();
       } else {
         setErrorMessage(res.message || "Failed to sign in with Google.");
       }
@@ -99,7 +106,7 @@ function AdminLogin() {
         toast.success("Authenticated as Event Administrator", {
           description: `Logged in as ${email}`,
         });
-        navigate({ to: "/admin" });
+        window.location.href = getAdminRedirect();
       } else {
         setErrorMessage(res.message || "Authentication failed. Please verify credentials.");
       }

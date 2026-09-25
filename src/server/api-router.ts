@@ -264,6 +264,7 @@ export async function handleApiRequest(request: Request): Promise<Response> {
       // 2. Automate organizer notification to verve.n.co.ke@gmail.com
       sendOrganizerNewMpesaNotification({
         orderNumber: order.orderNumber,
+        orderId: order.id,
         mpesaCode: extractedCode,
         customerName: order.buyerName || "Attendee",
         customerEmail: targetEmail || "Not provided",

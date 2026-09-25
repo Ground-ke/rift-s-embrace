@@ -128,13 +128,16 @@ export class AdminServerService {
 
     return {
       totalSold,
+      totalTicketsSold: totalSold,
       totalUsed,
+      checkedInCount: totalUsed,
       totalCancelled,
       totalValid,
       totalRevenueKes,
       totalCapacity,
       remainingCapacity,
       checkinRate,
+      activePromotionsCount: promos.filter((p) => p.isActive).length,
       activePromosCount: promos.filter((p) => p.isActive).length,
       activeScannersCount: scanners.filter((s) => s.status === "active").length,
       recentTickets: tickets.slice(0, 5),

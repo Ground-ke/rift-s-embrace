@@ -71,8 +71,23 @@ interface AuditEntry {
 
 export function TicketManagementTab() {
   const { user } = useAdminAuth();
-  const [tickets, setTickets] = useState<TicketItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+
+  // Instant synchronous hydration from localStorage so tickets never vanish upon leaving/returning to admin page
+  const [tickets, setTickets] = useState<TicketItem[]>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const cached = localStorage.getItem("rift_admin_tickets_cache");
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      } catch (_e) {
+        /* ignore */
+      }
+    }
+    return [];
+  });
+  const [isLoading, setIsLoading] = useState(tickets.length === 0);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [tierFilter, setTierFilter] = useState("all");
@@ -93,20 +108,23 @@ export function TicketManagementTab() {
 
   // Load tickets from server and subscribe to Firestore live stream
   const fetchTickets = async () => {
-    setIsLoading(true);
     try {
       const res = await fetch("/api/admin/tickets");
       const data = await res.json();
       if (data.success && Array.isArray(data.tickets)) {
         setTickets((prev) => {
           const map = new Map<string, TicketItem>();
+          prev.forEach((t) => map.set(t.ticketNumber, t));
           data.tickets.forEach((t: TicketItem) => map.set(t.ticketNumber, t));
-          prev.forEach((t) => {
-            if (!map.has(t.ticketNumber)) map.set(t.ticketNumber, t);
-          });
-          return Array.from(map.values()).sort(
+          const sorted = Array.from(map.values()).sort(
             (a, b) => new Date(b.issuedAt).getTime() - new Date(a.issuedAt).getTime(),
           );
+          try {
+            localStorage.setItem("rift_admin_tickets_cache", JSON.stringify(sorted));
+          } catch (_e) {
+            /* ignore */
+          }
+          return sorted;
         });
       }
     } catch (err) {
@@ -156,9 +174,15 @@ export function TicketManagementTab() {
             });
           });
 
-          return Array.from(map.values()).sort(
+          const sorted = Array.from(map.values()).sort(
             (a, b) => new Date(b.issuedAt).getTime() - new Date(a.issuedAt).getTime(),
           );
+          try {
+            localStorage.setItem("rift_admin_tickets_cache", JSON.stringify(sorted));
+          } catch (_e) {
+            /* ignore */
+          }
+          return sorted;
         });
       }
       setIsLoading(false);

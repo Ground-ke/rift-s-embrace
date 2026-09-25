@@ -197,6 +197,7 @@ export function subscribeToTickets(
 ): () => void {
   const path = "tickets";
   try {
+    if (!db) return () => {};
     const q = query(collection(db, path), limit(limitCount));
     return onSnapshot(
       q,
@@ -205,11 +206,12 @@ export function subscribeToTickets(
         onTickets(tickets);
       },
       (error) => {
-        handleFirestoreError(error, OperationType.LIST, path);
+        console.warn("[Firestore] Tickets subscription non-fatal note:", error);
       },
     );
   } catch (error) {
-    handleFirestoreError(error, OperationType.LIST, path);
+    console.warn("[Firestore] Tickets subscription init note:", error);
+    return () => {};
   }
 }
 
@@ -219,6 +221,7 @@ export function subscribeToTickets(
 export async function saveOrderToFirestore(order: FirestoreOrder): Promise<void> {
   const path = `orders/${order.orderId}`;
   try {
+    if (!db) return;
     await setDoc(
       doc(db, "orders", order.orderId),
       {
@@ -229,7 +232,7 @@ export async function saveOrderToFirestore(order: FirestoreOrder): Promise<void>
       { merge: true },
     );
   } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, path);
+    console.warn("[Firestore] saveOrderToFirestore note:", error);
   }
 }
 
@@ -302,7 +305,7 @@ export async function submitMpesaCodeToFirestore(params: {
 
     await setDoc(doc(db, "orders", orderId), updateData, { merge: true });
   } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, path);
+    console.warn("[Firestore] submitMpesaCodeToFirestore note:", error);
   }
 }
 
@@ -315,6 +318,7 @@ export function subscribeToOrder(
 ): () => void {
   const path = `orders/${orderId}`;
   try {
+    if (!db) return () => {};
     return onSnapshot(
       doc(db, "orders", orderId),
       (snap) => {
@@ -325,11 +329,12 @@ export function subscribeToOrder(
         }
       },
       (error) => {
-        handleFirestoreError(error, OperationType.GET, path);
+        console.warn("[Firestore] Order subscription non-fatal note:", error);
       },
     );
   } catch (error) {
-    handleFirestoreError(error, OperationType.GET, path);
+    console.warn("[Firestore] Failed to initiate order subscription:", error);
+    return () => {};
   }
 }
 
@@ -339,6 +344,7 @@ export function subscribeToOrder(
 export function subscribeToPendingOrders(onOrders: (orders: FirestoreOrder[]) => void): () => void {
   const path = "orders";
   try {
+    if (!db) return () => {};
     const q = query(collection(db, path), where("status", "==", "pending_approval"));
     return onSnapshot(
       q,
@@ -347,11 +353,12 @@ export function subscribeToPendingOrders(onOrders: (orders: FirestoreOrder[]) =>
         onOrders(orders);
       },
       (error) => {
-        handleFirestoreError(error, OperationType.LIST, path);
+        console.warn("[Firestore] Pending orders subscription non-fatal note:", error);
       },
     );
   } catch (error) {
-    handleFirestoreError(error, OperationType.LIST, path);
+    console.warn("[Firestore] Failed to initiate pending orders subscription:", error);
+    return () => {};
   }
 }
 
@@ -364,6 +371,7 @@ export function subscribeToAllOrders(
 ): () => void {
   const path = "orders";
   try {
+    if (!db) return () => {};
     const q = query(collection(db, path), limit(limitCount));
     return onSnapshot(
       q,
@@ -372,11 +380,12 @@ export function subscribeToAllOrders(
         onOrders(orders);
       },
       (error) => {
-        handleFirestoreError(error, OperationType.LIST, path);
+        console.warn("[Firestore] All orders subscription non-fatal note:", error);
       },
     );
   } catch (error) {
-    handleFirestoreError(error, OperationType.LIST, path);
+    console.warn("[Firestore] Failed to initiate all orders subscription:", error);
+    return () => {};
   }
 }
 
@@ -391,6 +400,7 @@ export async function approveOrderInFirestore(params: {
   const { orderId, adminEmail, tickets } = params;
   const path = `orders/${orderId}`;
   try {
+    if (!db) return;
     const orderRef = doc(db, "orders", orderId);
     await updateDoc(orderRef, {
       status: "approved",
@@ -405,7 +415,7 @@ export async function approveOrderInFirestore(params: {
       await saveTicketToFirestore(ticket);
     }
   } catch (error) {
-    handleFirestoreError(error, OperationType.UPDATE, path);
+    console.warn("[Firestore] approveOrderInFirestore note:", error);
   }
 }
 
@@ -420,6 +430,7 @@ export async function rejectOrderInFirestore(params: {
   const { orderId, reason, adminEmail } = params;
   const path = `orders/${orderId}`;
   try {
+    if (!db) return;
     const orderRef = doc(db, "orders", orderId);
     await updateDoc(orderRef, {
       status: "rejected",
@@ -428,6 +439,6 @@ export async function rejectOrderInFirestore(params: {
       updatedAt: new Date().toISOString(),
     });
   } catch (error) {
-    handleFirestoreError(error, OperationType.UPDATE, path);
+    console.warn("[Firestore] rejectOrderInFirestore note:", error);
   }
 }

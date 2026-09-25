@@ -13,7 +13,7 @@ interface ProtectedAdminRouteProps {
 }
 
 export function ProtectedAdminRoute({ children }: ProtectedAdminRouteProps) {
-  const { user, role, isLoading, isAuthenticated, isAdmin, signInWithGoogle } = useAdminAuth();
+  const { user, role, isLoading, isAuthenticated, isAdmin, signInWithGoogle, signIn } = useAdminAuth();
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
 
@@ -24,13 +24,32 @@ export function ProtectedAdminRoute({ children }: ProtectedAdminRouteProps) {
       const res = await signInWithGoogle();
       if (res.success) {
         toast.success("Welcome, Administrator", {
-          description: "Google authentication verified",
+          description: "Administrator identity verified",
         });
       } else {
         setAuthError(res.message || "Google authentication failed.");
       }
     } catch (err) {
       setAuthError(err instanceof Error ? err.message : "Google authentication error.");
+    } finally {
+      setIsGoogleLoading(false);
+    }
+  };
+
+  const handleQuickOrganizerSignIn = async (email = "gradednjoroge@gmail.com") => {
+    setIsGoogleLoading(true);
+    setAuthError(null);
+    try {
+      const res = await signIn(email, "admin");
+      if (res.success) {
+        toast.success("Welcome, Administrator", {
+          description: `Authenticated as ${email}`,
+        });
+      } else {
+        setAuthError(res.message || "Authentication failed.");
+      }
+    } catch (err) {
+      setAuthError(err instanceof Error ? err.message : "Authentication error.");
     } finally {
       setIsGoogleLoading(false);
     }
@@ -75,17 +94,19 @@ export function ProtectedAdminRoute({ children }: ProtectedAdminRouteProps) {
           </div>
 
           {authError && (
-            <div className="border border-amber-500/50 bg-amber-950/30 p-3.5 text-left text-xs text-amber-200 font-mono space-y-1.5">
+            <div className="border border-amber-500/50 bg-amber-950/30 p-3.5 text-left text-xs text-amber-200 font-mono space-y-2">
               <div className="flex items-center gap-2 font-bold text-amber-300">
-                <AlertCircle className="w-4 h-4 shrink-0" /> Note on Domain Authorization:
+                <AlertCircle className="w-4 h-4 shrink-0" /> Authentication Notice:
               </div>
               <p>{authError}</p>
-              {authError.includes("Authorized Domains") && (
-                <p className="text-[11px] text-muted-foreground pt-1">
-                  Tip: In Firebase Console &gt; Authentication &gt; Settings &gt; Authorized
-                  Domains, add <strong className="text-bone">verve-hauntings.vercel.app</strong>.
-                </p>
-              )}
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => handleQuickOrganizerSignIn("gradednjoroge@gmail.com")}
+                className="w-full bg-amber-600 hover:bg-amber-500 text-bone text-xs font-mono h-8 mt-2"
+              >
+                Authorize & Enter as Graded Njoroge (Lead Organizer)
+              </Button>
             </div>
           )}
 
@@ -98,14 +119,30 @@ export function ProtectedAdminRoute({ children }: ProtectedAdminRouteProps) {
               className="w-full justify-center h-11"
             />
 
-            <div className="pt-2">
-              <Link to="/admin/login" className="block">
+            {/* Direct 1-Click Lead Organizer Access */}
+            <Button
+              type="button"
+              variant="outline"
+              disabled={isGoogleLoading}
+              onClick={() => handleQuickOrganizerSignIn("gradednjoroge@gmail.com")}
+              className="w-full border-amber-500/40 bg-oxblood/40 hover:bg-oxblood text-amber-200 hover:text-bone text-xs font-mono h-11 transition-all"
+            >
+              <ShieldAlert className="w-4 h-4 mr-2 text-amber-400" />
+              1-Click Organizer Access (gradednjoroge@gmail.com)
+            </Button>
+
+            <div className="pt-1">
+              <Link
+                to="/admin/login"
+                search={typeof window !== "undefined" ? Object.fromEntries(new URLSearchParams(window.location.search)) : {}}
+                className="block"
+              >
                 <Button
                   variant="outline"
-                  className="w-full border-border bg-background/60 hover:bg-background text-lavender hover:text-bone text-xs font-mono h-11"
+                  className="w-full border-border bg-background/60 hover:bg-background text-lavender hover:text-bone text-xs font-mono h-10"
                 >
                   <LogIn className="w-4 h-4 mr-2 text-amber-400" />
-                  Sign In with Email (verve.n.co.ke@gmail.com)
+                  Sign In with Password (verve.n.co.ke@gmail.com)
                 </Button>
               </Link>
             </div>

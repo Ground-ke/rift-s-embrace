@@ -9,7 +9,7 @@ import {
   generateMpesaReceivedEmailHtml,
   type TicketEmailItem,
 } from "../lib/email-templates";
-import { generateTicketPdfBuffer } from "./pdf-ticket";
+import { generateTicketPdfBuffer, generatePureJsPdfTicket } from "./pdf-ticket";
 
 export {
   generateBookingConfirmationEmailHtml,
@@ -267,8 +267,18 @@ export async function sendTicketConfirmationEmail(params: {
       venueName: venue,
     });
   } catch (pdfErr) {
-    console.warn("[PDF Gen] Fallback pass buffer used:", pdfErr);
-    pdfBuffer = Buffer.from("%PDF-1.4 Fallback Ticket Pass");
+    console.warn("[PDF Gen] Using direct vector PDF fallback:", pdfErr);
+    pdfBuffer = await generatePureJsPdfTicket({
+      ticketCode: code,
+      customerName: name,
+      tierName: tier,
+      admitsCount: qty,
+      orderNumber: params.orderNumber || code,
+      totalKes: total,
+      qrHash: params.qrHash || (params.tickets && params.tickets[0]?.qrHash),
+      eventDate,
+      venueName: venue,
+    });
   }
 
   // 2. Generate standard iCalendar (.ics) attachment
@@ -629,11 +639,13 @@ export async function sendOrganizerNewMpesaNotification(params: {
   quantity: number;
   totalKes: number;
   rawMessage?: string;
+  orderId?: string;
 }): Promise<{ success: boolean; id?: string; simulated?: boolean; error?: string }> {
   const organizerEmail =
     process.env.ORGANIZER_EMAIL || process.env.SMTP_USER || "verve.n.co.ke@gmail.com";
   const siteUrl = getSiteBaseUrl();
-  const adminUrl = `${siteUrl}/admin`;
+  const targetId = params.orderId || params.orderNumber;
+  const adminUrl = `${siteUrl}/admin?tab=verifications&order=${encodeURIComponent(targetId)}`;
 
   const emailHtml = `
     <!DOCTYPE html>

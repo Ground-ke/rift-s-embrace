@@ -104,28 +104,86 @@ interface NavItem {
 function AdminDashboardContent() {
   const { user, role, signOut } = useAdminAuth();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState("overview");
-  const [metrics, setMetrics] = useState<OverviewMetrics | null>(null);
-  const [isLoadingMetrics, setIsLoadingMetrics] = useState(true);
-  const [pendingOrdersCount, setPendingOrdersCount] = useState<number>(0);
+  const [activeTab, setActiveTabState] = useState(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const tab = params.get("tab");
+        if (tab === "verifications" || tab === "verification") return "verifications";
+        if (tab === "tickets") return "tickets";
+        if (tab === "promotions") return "promotions";
+        if (tab === "scanners") return "scanners";
+        if (tab === "tiers" || tab === "pricing") return "tiers";
+        if (tab === "analytics") return "analytics";
+        if (tab === "broadcast") return "broadcast";
+        if (tab === "notifications") return "notifications";
+      } catch (_e) {
+        /* ignore */
+      }
+    }
+    return "overview";
+  });
+
+  const setActiveTab = (tab: string) => {
+    setActiveTabState(tab);
+    if (typeof window !== "undefined") {
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.set("tab", tab);
+        window.history.replaceState({}, "", url.toString());
+      } catch (_e) {
+        /* ignore */
+      }
+    }
+  };
+
+  // Synchronous hydration from localStorage prevents metrics from disappearing across tab/page switches
+  const [metrics, setMetrics] = useState<OverviewMetrics | null>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const cached = localStorage.getItem("rift_admin_metrics_cache");
+        if (cached) return JSON.parse(cached);
+      } catch (_e) {
+        /* ignore */
+      }
+    }
+    return null;
+  });
+  const [isLoadingMetrics, setIsLoadingMetrics] = useState(!metrics);
+  const [pendingOrdersCount, setPendingOrdersCount] = useState<number>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const cached = localStorage.getItem("rift_admin_pending_count");
+        if (cached) return Number(cached) || 0;
+      } catch (_e) {
+        /* ignore */
+      }
+    }
+    return 0;
+  });
   const [pendingRevenueKes, setPendingRevenueKes] = useState<number>(0);
 
   // Fetch overview metrics from backend and subscribe to live Firestore updates
   const fetchMetrics = async () => {
-    setIsLoadingMetrics(true);
     try {
       const res = await fetch("/api/admin/overview");
       const data = await res.json();
       if (data.success) {
-        setMetrics({
+        const loadedMetrics: OverviewMetrics = {
           totalRevenueKes: data.totalRevenueKes ?? 0,
-          totalTicketsSold: data.totalTicketsSold ?? 0,
-          checkedInCount: data.checkedInCount ?? 0,
+          totalTicketsSold: data.totalTicketsSold ?? data.totalSold ?? 0,
+          checkedInCount: data.checkedInCount ?? data.totalUsed ?? 0,
           remainingCapacity: data.remainingCapacity ?? 800,
           activePromotionsCount: data.activePromotionsCount ?? 4,
           activeScannersCount: data.activeScannersCount ?? 3,
           hourlySalesTrend: data.hourlySalesTrend || [],
-        });
+        };
+        setMetrics(loadedMetrics);
+        try {
+          localStorage.setItem("rift_admin_metrics_cache", JSON.stringify(loadedMetrics));
+        } catch (_e) {
+          /* ignore */
+        }
       }
 
       // Concurrently fetch pending orders to show pending revenue & queue size immediately
@@ -134,6 +192,11 @@ function AdminDashboardContent() {
         const pendingData = await pendingRes.json();
         if (pendingData.success && Array.isArray(pendingData.orders)) {
           setPendingOrdersCount(pendingData.orders.length);
+          try {
+            localStorage.setItem("rift_admin_pending_count", String(pendingData.orders.length));
+          } catch (_e) {
+            /* ignore */
+          }
           const totalKes = pendingData.orders.reduce(
             (sum: number, o: { totalKes?: number }) => sum + (o.totalKes || 0),
             0,
@@ -189,7 +252,7 @@ function AdminDashboardContent() {
             count: hourMap.get(hour)!.count,
           }));
 
-          return {
+          const updated: OverviewMetrics = {
             totalRevenueKes,
             totalTicketsSold: totalSold,
             checkedInCount,
@@ -199,6 +262,12 @@ function AdminDashboardContent() {
             hourlySalesTrend:
               hourlySalesTrend.length > 0 ? hourlySalesTrend : (prev?.hourlySalesTrend ?? []),
           };
+          try {
+            localStorage.setItem("rift_admin_metrics_cache", JSON.stringify(updated));
+          } catch (_e) {
+            /* ignore */
+          }
+          return updated;
         });
       }
       setIsLoadingMetrics(false);
@@ -206,9 +275,16 @@ function AdminDashboardContent() {
 
     // Subscribe to live Firestore pending approval orders
     const unsubscribePending = subscribeToPendingOrders((pendingOrders: FirestoreOrder[]) => {
-      setPendingOrdersCount(pendingOrders.length);
-      const totalKes = pendingOrders.reduce((sum, o) => sum + (o.totalKes || 0), 0);
-      setPendingRevenueKes(totalKes);
+      if (pendingOrders && pendingOrders.length >= 0) {
+        setPendingOrdersCount(pendingOrders.length);
+        try {
+          localStorage.setItem("rift_admin_pending_count", String(pendingOrders.length));
+        } catch (_e) {
+          /* ignore */
+        }
+        const totalKes = pendingOrders.reduce((sum, o) => sum + (o.totalKes || 0), 0);
+        setPendingRevenueKes(totalKes);
+      }
     });
 
     return () => {

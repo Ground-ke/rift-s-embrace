@@ -147,6 +147,9 @@ export class TicketsServerService {
       issuedTickets.push(ticketRecord);
     }
 
+    // Persist all newly issued tickets to disk immediately
+    PersistentStore.saveTickets(ticketsStore);
+
     if (isCloudSqlConfigured() && issuedTickets.length > 0) {
       insertTickets(
         issuedTickets.map((t) => ({
@@ -222,6 +225,9 @@ export class TicketsServerService {
       ticketsStore.set(ticketNumber, ticketRecord);
       issuedTickets.push(ticketRecord);
     }
+
+    // Persist all newly issued tickets to disk immediately
+    PersistentStore.saveTickets(ticketsStore);
 
     if (isCloudSqlConfigured() && issuedTickets.length > 0) {
       insertTickets(
