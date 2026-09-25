@@ -1,209 +1,122 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
+import { CheckCircle2, CircleX, Clock3, ScanLine } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { DigitalTicket, DigitalTicketData } from "@/components/event/digital-ticket";
-import { VerveBackButton, VervePresenterBadge } from "@/components/brand/verve-logo";
-import {
-  CheckCircle2,
-  ScanLine,
-  CircleX,
-  AlertCircle,
-  FileText,
-  Download,
-  Sparkles,
-} from "lucide-react";
+import { QRPlaceholder } from "@/components/event/qr-placeholder";
+import { VerveBackButton, VerveLogo, VervePresenterBadge } from "@/components/brand/verve-logo";
 
 export const Route = createFileRoute("/ticket/demo")({
   head: () => ({
     meta: [
-      { title: "Digital Ticket Experience — Verve & Co. | Hauntings of the Rift" },
+      { title: "Digital Ticket Design — Verve & Co. | Hauntings of the Rift" },
       {
         name: "description",
         content:
-          "Official cryptographic digital admission ticket preview for Hauntings of the Rift presented by Verve & Co.",
+          "Digital ticket interface preview for Hauntings of the Rift presented by Verve & Co.",
       },
-      { property: "og:title", content: "Digital Ticket Pass — Verve & Co." },
-      {
-        property: "og:description",
-        content: "Interactive preview of the official event admission ticket and PDF pass.",
-      },
+      { property: "og:title", content: "Hauntings of the Rift Digital Ticket — Verve & Co." },
+      { property: "og:description", content: "Frontend preview of the event ticket experience." },
       { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:card", content: "summary" },
     ],
   }),
   component: TicketDemo,
 });
-
-type State = "valid" | "used" | "cancelled" | "refunded";
-
+type State = "valid" | "used" | "cancelled" | "invalid";
 function TicketDemo() {
-  const [ticketState, setTicketState] = useState<State>("valid");
-
-  const [ticketData, setTicketData] = useState<DigitalTicketData>({
-    ticketNumber: "HRT-DEMO-001",
-    qrHash: "HRT_SECURE_VERIFIED_HMAC_HASH_DEMO_001",
-    tierSlug: "vip",
-    tierName: "VIP Pass",
-    admitsCount: 1,
-    attendeeName: "Sample Guest",
-    buyerEmail: "guest@example.com",
-    buyerPhone: "+254712345678",
-    status: "valid",
-    priceKes: 2500,
-    issuedAt: "2026-09-25T10:00:00.000Z",
-    usedAt: null,
-    venue: {
-      name: "Top Cliff Lounge",
-      address: "Nakuru-Nairobi Highway, Free Area",
-      city: "Nakuru, Kenya",
-      date: "Saturday, 31 October 2026",
-      time: "4:00 PM - 4:00 AM EAT",
-      ageRequirement: "Strictly 21+ with Valid ID",
-    },
-  });
-
-  const handleStateChange = (newState: State) => {
-    setTicketState(newState);
-    setTicketData((prev) => ({
-      ...prev,
-      status: newState,
-      usedAt: newState === "used" ? new Date().toISOString() : null,
-    }));
-  };
-
+  const [state, setState] = useState<State>("valid");
+  const stateData = {
+    valid: ["Valid ticket", "Ready for entry", CheckCircle2],
+    used: ["Used ticket", "Already checked in", ScanLine],
+    cancelled: ["Cancelled ticket", "Not valid for entry", CircleX],
+    invalid: ["Invalid ticket", "Unable to verify", CircleX],
+  } as const;
+  const [title, sub, Icon] = stateData[state];
   return (
     <div className="min-h-screen px-4 py-8 sm:py-14 bg-background">
       <div className="mx-auto max-w-5xl">
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-bone/15 pb-4 mb-8">
+        <div className="flex items-center justify-between">
           <VerveBackButton to="/" label="Back to Event" />
           <VervePresenterBadge />
         </div>
-
-        {/* Title */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-500/10 border border-amber-500/30 text-amber-300 font-mono text-xs uppercase tracking-widest mb-2">
-            <Sparkles className="size-3.5" /> Official Interactive Pass Preview
-          </div>
-          <h1 className="text-3xl font-display text-bone sm:text-5xl">DIGITAL ADMISSION PASS</h1>
-          <p className="text-xs text-bone-muted mt-2 max-w-lg mx-auto">
-            This live pass renders with verified cryptographic HMAC QR tokens, instant state
-            toggling, and fast server-side high-res PDF generation.
-          </p>
-        </div>
-
-        {/* Content Layout */}
-        <div className="grid gap-8 lg:grid-cols-[1fr_20rem] lg:items-start">
-          {/* Main Digital Ticket Component with Live QR & PDF Download */}
-          <div>
-            <DigitalTicket
-              ticket={ticketData}
-              showAdminActions={true}
-              onStatusChange={(status) => handleStateChange(status as State)}
-            />
-          </div>
-
-          {/* Sidebar Controls */}
-          <aside className="space-y-6">
-            <div className="border border-bone/20 bg-card p-5 space-y-4">
-              <p className="text-xs font-bold uppercase tracking-widest text-lavender font-mono">
-                Simulate Gate Status
+        <div className="mt-8 grid gap-8 lg:grid-cols-[1fr_20rem] lg:items-start">
+          <article className="gothic-frame poster-grain relative overflow-hidden bg-card">
+            <div className="border-b border-dashed border-bone/25 bg-oxblood p-6 sm:p-10">
+              <div className="mb-3">
+                <VerveLogo variant="horizontal" size="sm" showCo={true} />
+              </div>
+              <p className="text-xs font-bold uppercase tracking-[.3em] text-lavender">
+                Verve &amp; Co. presents
               </p>
-              <div className="grid gap-2">
-                <Button
-                  variant={ticketState === "valid" ? "event" : "spectral"}
-                  size="sm"
-                  className="justify-start font-mono text-xs"
-                  onClick={() => handleStateChange("valid")}
-                >
-                  <CheckCircle2 className="size-3.5 mr-2 text-emerald-400" />
-                  Valid (Ready for Entry)
-                </Button>
-                <Button
-                  variant={ticketState === "used" ? "event" : "spectral"}
-                  size="sm"
-                  className="justify-start font-mono text-xs"
-                  onClick={() => handleStateChange("used")}
-                >
-                  <ScanLine className="size-3.5 mr-2 text-amber-400" />
-                  Used (Checked In at Gate)
-                </Button>
-                <Button
-                  variant={ticketState === "cancelled" ? "event" : "spectral"}
-                  size="sm"
-                  className="justify-start font-mono text-xs"
-                  onClick={() => handleStateChange("cancelled")}
-                >
-                  <CircleX className="size-3.5 mr-2 text-red-400" />
-                  Cancelled Pass
-                </Button>
-                <Button
-                  variant={ticketState === "refunded" ? "event" : "spectral"}
-                  size="sm"
-                  className="justify-start font-mono text-xs"
-                  onClick={() => handleStateChange("refunded")}
-                >
-                  <AlertCircle className="size-3.5 mr-2 text-purple-400" />
-                  Refunded Pass
-                </Button>
-              </div>
+              <h1 className="mt-3 text-5xl leading-[.85] text-bone sm:text-7xl">
+                Hauntings
+                <br />
+                of the Rift
+              </h1>
             </div>
-
-            {/* Direct Document Downloads */}
-            <div className="border border-bone/20 bg-card p-5 space-y-3">
-              <p className="text-xs font-bold uppercase tracking-widest text-lavender font-mono">
-                Fast Pass Downloads
-              </p>
-              <p className="text-xs text-bone-muted leading-relaxed">
-                Test the backend image &amp; PDF generation pipeline running on Sharp + jsPDF.
-              </p>
-              <div className="space-y-2 pt-1">
-                <Button
-                  asChild
-                  variant="outline"
-                  size="sm"
-                  className="w-full justify-start text-xs border-blue-500/40 text-blue-300 hover:bg-blue-950/40"
-                >
-                  <a href="/api/tickets/HRT-DEMO-001/pdf" target="_blank" rel="noopener noreferrer">
-                    <FileText className="size-3.5 mr-2 text-blue-400" />
-                    Download High-Res PDF Pass
-                  </a>
-                </Button>
-                <Button
-                  asChild
-                  variant="outline"
-                  size="sm"
-                  className="w-full justify-start text-xs border-amber-500/40 text-amber-300 hover:bg-amber-950/40"
-                >
-                  <a
-                    href="/api/tickets/HRT-DEMO-001/image"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    <Download className="size-3.5 mr-2 text-amber-400" />
-                    Download High-Res JPG Pass
-                  </a>
-                </Button>
+            <div className="grid gap-8 p-6 sm:grid-cols-[1fr_auto] sm:p-10">
+              <div>
+                <div className="flex items-center gap-2 text-bone">
+                  <Icon className="size-5 text-lavender" />
+                  <strong className="uppercase tracking-widest">{title}</strong>
+                </div>
+                <p className="mt-1 text-sm text-muted-foreground">{sub}</p>
+                <dl className="mt-10 grid grid-cols-2 gap-6">
+                  <div>
+                    <dt className="text-xs uppercase tracking-widest text-muted-foreground">
+                      Attendee
+                    </dt>
+                    <dd className="mt-1 text-xl text-bone">Sample Guest</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs uppercase tracking-widest text-muted-foreground">
+                      Ticket
+                    </dt>
+                    <dd className="mt-1 text-xl text-bone">Early Bird</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs uppercase tracking-widest text-muted-foreground">
+                      Date
+                    </dt>
+                    <dd className="mt-1 text-xl text-bone">31 Oct 2026</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs uppercase tracking-widest text-muted-foreground">
+                      Ticket ID
+                    </dt>
+                    <dd className="mt-1 text-xl text-bone">HRT-DEMO-001</dd>
+                  </div>
+                </dl>
+                <div className="mt-8 flex items-center gap-2 border-t border-border pt-5 text-sm text-muted-foreground">
+                  <Clock3 className="size-4" />4 PM till late · Top Cliff Lounge, Nakuru
+                </div>
               </div>
+              <QRPlaceholder />
             </div>
-
-            <div className="border border-bone/10 bg-background/50 p-4 text-xs text-muted-foreground space-y-2 font-mono">
-              <div className="text-[11px] text-bone uppercase tracking-wider font-semibold">
-                Pass Credentials
-              </div>
-              <div>
-                Code: <span className="text-amber-400">{ticketData.ticketNumber}</span>
-              </div>
-              <div>
-                Tier: <span className="text-bone">{ticketData.tierName}</span>
-              </div>
-              <div>
-                Date: <span className="text-bone">31 Oct 2026</span>
-              </div>
-              <div>
-                Gate: <span className="text-bone">Top Cliff Lounge</span>
-              </div>
+            <div className="border-t border-border bg-background/50 p-4 text-center text-xs uppercase tracking-widest text-muted-foreground">
+              Design preview · This QR is not valid for entry
             </div>
+          </article>
+          <aside>
+            <p className="text-xs font-bold uppercase tracking-widest text-lavender">
+              Ticket state preview
+            </p>
+            <div className="mt-4 grid gap-2">
+              {(["valid", "used", "cancelled", "invalid"] as State[]).map((s) => (
+                <Button
+                  key={s}
+                  variant={state === s ? "event" : "spectral"}
+                  className="justify-start"
+                  onClick={() => setState(s)}
+                >
+                  {s}
+                </Button>
+              ))}
+            </div>
+            <p className="mt-6 text-sm text-muted-foreground">
+              The production ticket will receive attendee data, a backend-issued ID, entry
+              instructions, and a signed QR payload.
+            </p>
           </aside>
         </div>
       </div>

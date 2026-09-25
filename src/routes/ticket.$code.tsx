@@ -28,106 +28,39 @@ export const Route = createFileRoute("/ticket/$code")({
 
 function TicketCodeRouteComponent() {
   const { code } = Route.useParams();
-  const normalizedCode = (code || "").trim().toUpperCase();
-
-  const [ticket, setTicket] = useState<DigitalTicketData | null>(() => {
-    if (normalizedCode === "HRT-DEMO-001") {
-      return {
-        ticketNumber: "HRT-DEMO-001",
-        qrHash: "HRT_SECURE_VERIFIED_HMAC_HASH_DEMO_001",
-        tierSlug: "vip",
-        tierName: "VIP Pass",
-        admitsCount: 1,
-        attendeeName: "Sample Guest",
-        buyerEmail: "guest@example.com",
-        buyerPhone: "+254712345678",
-        status: "valid",
-        priceKes: 2500,
-        issuedAt: "2026-09-25T10:00:00.000Z",
-        usedAt: null,
-        venue: {
-          name: "Top Cliff Lounge",
-          address: "Nakuru-Nairobi Highway, Free Area",
-          city: "Nakuru, Kenya",
-          date: "Saturday, 31 October 2026",
-          time: "4:00 PM - 4:00 AM EAT",
-          ageRequirement: "Strictly 21+ with Valid ID",
-        },
-      };
-    }
-    if (normalizedCode === "HR-7892-4910") {
-      return {
-        ticketNumber: "HR-7892-4910",
-        qrHash: "HR_SECURE_VERIFIED_HMAC_HASH_7892_4910",
-        tierSlug: "early-bird",
-        tierName: "Early Bird Admission",
-        admitsCount: 1,
-        attendeeName: "Alex Vance",
-        buyerEmail: "alex.vance@example.com",
-        buyerPhone: "+254722000000",
-        status: "valid",
-        priceKes: 1000,
-        issuedAt: "2026-09-25T10:00:00.000Z",
-        usedAt: null,
-        venue: {
-          name: "Top Cliff Lounge",
-          address: "Nakuru-Nairobi Highway, Free Area",
-          city: "Nakuru, Kenya",
-          date: "Saturday, 31 October 2026",
-          time: "4:00 PM - 4:00 AM EAT",
-          ageRequirement: "Strictly 21+ with Valid ID",
-        },
-      };
-    }
-    return null;
-  });
-
-  const [loading, setLoading] = useState(
-    () => normalizedCode !== "HRT-DEMO-001" && normalizedCode !== "HR-7892-4910",
-  );
+  const [ticket, setTicket] = useState<DigitalTicketData | null>(null);
+  const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadTicket() {
-      if (!normalizedCode) {
+      if (!code) {
         setErrorMessage("No ticket code was specified.");
         setLoading(false);
         return;
       }
 
       try {
-        const res = await fetch(`/api/tickets/${normalizedCode}`);
+        setLoading(true);
+        const res = await fetch(`/api/tickets/${code}`);
         const data = await res.json();
 
         if (!res.ok || !data.success || !data.ticket) {
-          setTicket((current) => {
-            if (!current) {
-              setErrorMessage(
-                data.message || `No valid ticket pass found for code "${normalizedCode}".`,
-              );
-            }
-            return current;
-          });
+          setErrorMessage(data.message || `No valid ticket pass found for code "${code}".`);
           setLoading(false);
           return;
         }
 
         setTicket(data.ticket);
-        setErrorMessage(null);
       } catch {
-        setTicket((current) => {
-          if (!current) {
-            setErrorMessage("Network error verifying ticket pass. Please check your connection.");
-          }
-          return current;
-        });
+        setErrorMessage("Network error verifying ticket pass. Please check your connection.");
       } finally {
         setLoading(false);
       }
     }
 
     loadTicket();
-  }, [normalizedCode]);
+  }, [code]);
 
   const handleStatusChange = (newStatus: "valid" | "used") => {
     if (ticket) {
